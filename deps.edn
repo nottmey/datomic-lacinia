@@ -1,0 +1,13 @@
+{:paths   ["src"]
+ :deps    {com.datomic/client-api {:mvn/version "1.0.58"}
+           org.clojure/clojure    {:mvn/version "1.11.1"}}
+ :aliases {:repl {:extra-deps {com.datomic/dev-local   {:mvn/version "1.0.243"}
+                               io.aviso/pretty         {:mvn/version "1.1.1"}
+                               com.walmartlabs/lacinia {:mvn/version "1.1"}}}
+           :test {:extra-paths ["test"]
+                  :extra-deps  {com.datomic/dev-local                {:mvn/version "1.0.243"}
+                                io.aviso/pretty                      {:mvn/version "1.1.1"}
+                                com.walmartlabs/lacinia              {:mvn/version "1.1"}
+                                io.github.cognitect-labs/test-runner {:git/tag "v0.5.0" :git/sha "b3fd0d2"}}
+                  :main-opts   ["-m" "cognitect.test-runner" "-d" "src" "-d" "test" "-r" "datomic-lacinia.*"]
+                  :exec-fn     cognitect.test-runner.api/test}}}
