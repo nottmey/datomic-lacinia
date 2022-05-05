@@ -1,5 +1,6 @@
-.clj-kondo
-.cpcache
-.idea
+.clj-kondo/**
+!.clj-kondo/config.edn
+.cpcache/
+.idea/
 .nrepl-port
 *.iml
