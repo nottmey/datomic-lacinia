@@ -1,4 +1,4 @@
-(ns datomic-lacinia.schema-test
+(ns datomic-lacinia.mbrainz-example-test
   (:require [datomic-lacinia.schema :as schema]
             [datomic-lacinia.datomic :as datomic]
             [datomic-lacinia.testing :as testing]

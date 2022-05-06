@@ -68,7 +68,7 @@ So, I just started with the general case and will consider generating type based
 
 ## Examples
 
-Extracted from [test/datomic_lacinia/schema_test.clj](test/datomic_lacinia/schema_test.clj). Subset of the plain old [Datomic mbrainz example](https://github.com/Datomic/mbrainz-sample).
+Extracted from [test/datomic_lacinia/mbrainz_example_test.clj](test/datomic_lacinia/mbrainz_example_test.clj). Subset of the plain old [Datomic mbrainz example](https://github.com/Datomic/mbrainz-sample).
 
 ```clojure
 ; suppose you transact attributes like these
