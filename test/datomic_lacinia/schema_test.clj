@@ -5,7 +5,8 @@
             [datomic.client.api :as d]
             [com.walmartlabs.lacinia.schema :as ls]
             [com.walmartlabs.lacinia :as l]
-            [clojure.test :refer [deftest is]]))
+            [clojure.test :refer [deftest is]]
+            [clojure.data.json :as json]))
 
 ; Testing
 ; - schema generation
@@ -105,11 +106,15 @@
     ; TODO test introspection
 
     (let [r (l/execute s get-artist-by-id {:id (id "1")} nil)]
+      (println "Example 1:")
+      (clojure.data.json/pprint r)
       (is (= (get-in r [:data :get :db :id]) (id "1")))
       (is (= (get-in r [:data :get :artist :name]) "Led Zeppelin"))
       (is (= (get-in r [:data :get :artist :type :db :ident]) ":artist.type/group")))
 
     (let [r (l/execute s match-john-lennon nil nil)]
+      (println "Example 2:")
+      (clojure.data.json/pprint r)
       (is (= (count (get-in r [:data :match])) 1))
       (is (= (get-in r [:data :match 0 :db :id]) (id "2")))
       (is (= (get-in r [:data :match 0 :artist :name]) "John Lennon"))
