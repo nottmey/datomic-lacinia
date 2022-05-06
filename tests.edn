@@ -1,0 +1,3 @@
+#kaocha/v1 #meta-merge [{:tests [{:id          :unit
+                                  :ns-patterns [""]
+                                  :test-paths  ["test" "src"]}]}]
