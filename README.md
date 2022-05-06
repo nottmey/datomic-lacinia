@@ -15,7 +15,38 @@ Enabling you to automatically grow your API with your database schema, without b
 
 Possible use-case in the future: Allowing you to move your schema or database while keeping the API stable. (Possibly through configuration of mappings from old to new attributes. Or just reuse the generated schema with your own resolvers.)
 
-> This is very helpful, when you want to support clients which are permanently installed. Without a reliable update mechanism (e.g. Android & iOS Apps) your only choice is to keep your API stable and never break your old clients. This Datomic-GraphQL-Stack could help you to never worry about breakage and could enable you to just move forward.
+> This is very helpful, when you want to support clients which are permanently installed. These often have an unreliable update mechanism (e.g. Android & iOS Apps). Your only choice is to keep your API stable and never break your old clients. This Datomic-GraphQL-Stack could help you to never worry about breakage and could enable you to just move forward.
+
+## Usage
+
+```clojure
+(ns usage
+  (:require [datomic.client.api :as d]
+            [datomic-lacinia.schema :as schema]
+            [datomic-lacinia.datomic :as datomic]))
+
+; given a database connection
+(def conn ,,,)
+
+; load your database attributes (or query them yourself)
+(def attributes
+  (datomic/attributes (d/db conn)))
+
+; maybe do some additional filtering on your attributes
+
+; generate a schema with build-in resolvers
+(def lacinia-schema
+  (schema/gen-schema {:attributes attributes
+                      :resolve-db #(d/db conn)}))
+
+; overwrite resolvers if you want
+
+; compile your schema with lacinia and pass it e.g. to lacinia-pedestal:
+;  (io.pedestal.http/start
+;    (io.pedestal.http/create-server
+;      (com.walmartlabs.lacinia.pedestal2/default-service
+;        (com.walmartlabs.lacinia.schema/compile lacinia-schema) nil)))
+```
 
 ## License
 

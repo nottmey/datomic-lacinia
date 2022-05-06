@@ -4,30 +4,52 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest- is]]))
 
-(defn attributes [db namespaces]
-  (->> (d/q '[:find (pull ?e [:db/ident
-                              :db/valueType
-                              :db/cardinality
-                              :db/unique
-                              :db/doc])
-              :in $ ?nss
-              :where
-              [?e :db/valueType _]
-              [?e :db/cardinality _]
-              [?e :db/ident ?ident]
-              [(namespace ?ident) ?ns]
-              [(contains? ?nss ?ns)]]
-            db
-            (set namespaces))
-       (map first)))
+(def attributes-pattern
+  [:db/ident
+   :db/valueType
+   :db/cardinality
+   :db/unique
+   :db/doc])
+
+(defn attributes
+  ([db] (attributes db nil))
+  ([db nss]
+   (->> (if nss
+          (d/q '[:find (pull ?e pattern)
+                 :in $ pattern ?nss
+                 :where
+                 [?e :db/valueType _]
+                 [?e :db/cardinality _]
+                 [?e :db/ident ?ident]
+                 [(namespace ?ident) ?ns]
+                 [(contains? ?nss ?ns)]]
+               db
+               attributes-pattern
+               (set nss))
+          (d/q '[:find (pull ?e pattern)
+                 :in $ pattern
+                 :where
+                 [?e :db/valueType _]
+                 [?e :db/cardinality _]]
+               db
+               attributes-pattern))
+        (map first))))
 
 (deftest- attributes-test
+  (let [as     (attributes (d/db (local-temp-conn)))
+        idents (->> as (map #(:db/ident %)) (set))]
+    (is (contains? idents :db/ident))
+    (is (contains? idents :db.entity/attrs))
+    (is (contains? idents :fressian/tag)))
+
   (let [as     (attributes (d/db (local-temp-conn)) ["db"])
         idents (->> as (map #(:db/ident %)) (set))]
-    (is (every? #(= (namespace %) "db") idents))
     (is (contains? idents :db/ident))
     (is (contains? idents :db/valueType))
     (is (contains? idents :db/cardinality))
+    (is (not (contains? idents :db.entity/attrs)))
+    (is (not (contains? idents :fressian/tag)))
+    (is (every? #(= (namespace %) "db") idents))
     (is (every? #(map? (:db/valueType %)) as))
     (is (every? #(map? (:db/cardinality %)) as))))
 

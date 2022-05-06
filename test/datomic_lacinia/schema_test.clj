@@ -99,8 +99,8 @@
         data-tx (d/transact conn {:tx-data tx-data})
         id      (fn [temp-id] (str (get-in data-tx [:tempids temp-id])))
         as      (datomic/attributes (d/db conn) ["artist"])
-        s       (ls/compile (schema/gen-schema {:resolve-db #(d/db conn)
-                                                :attributes as}))]
+        s       (ls/compile (schema/gen-schema {:attributes as
+                                                :resolve-db #(d/db conn)}))]
 
     ; TODO test introspection
 
