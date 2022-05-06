@@ -22,4 +22,8 @@ jobs:
     - uses: DeLaGuardo/setup-clojure@5.1
       with:
         cli: ${{ matrix.clojure }}
+    - uses: s4u/maven-settings-action@v2.6.0
+      with:
+        servers: '[{"id": "cognitect-dev-tools", "username": "${{ secret.DEV_TOOLS_USERNAME }}", "password": "${{ secret.DEV_TOOLS_PASSWORD }}"}]'
+    - run: echo '{:mvn/repos {"cognitect-dev-tools" {:url "https://dev-tools.cognitect.com/maven/releases/"}}}' > ~/.clojure/deps.edn
     - run: clojure -M:test
