@@ -5,7 +5,7 @@
 
 (defn parse-gql-value [value db-attribute-type db-attribute-ident]
   (if (= db-attribute-ident :db/id)
-    (parse-long value)
+    (Long/valueOf ^String value)
     (condp = db-attribute-type
       ;; the following types don't have a direct counterpart
       :db.type/symbol value                                 ;; TODO data handling

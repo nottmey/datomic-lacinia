@@ -156,7 +156,7 @@
   (let [result-objects (gen-result-objects attributes entity-type-key)
         get-resolver   (fn [_ {:keys [id]} _]
                          ;; TODO check id, if available etc.
-                         (resolve/with-context {} {:eid (parse-long id) :db (resolve-db)}))
+                         (resolve/with-context {} {:eid (Long/valueOf ^String id) :db (resolve-db)}))
         match-resolver (fn [_ {:keys [template]} _]
                          (let [db       (resolve-db)
                                db-paths (db-paths-with-values template result-objects entity-type-key)
