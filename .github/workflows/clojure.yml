@@ -22,4 +22,4 @@ jobs:
     - uses: DeLaGuardo/setup-clojure@5.1
       with:
         cli: ${{ matrix.clojure }}
-    - run: clj -M:test
+    - run: clojure -M:test
