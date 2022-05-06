@@ -24,9 +24,5 @@ jobs:
         cli: ${{ matrix.clojure }}
     - uses: s4u/maven-settings-action@v2.6.0
       with:
-        servers: '[{"id": "cognitect-dev-tools", "username": "${{ secrets.DEV_TOOLS_USERNAME }}", "password": "123123"}]'
- #       servers: '[{"id": "cognitect-dev-tools", "username": "${{ secrets.DEV_TOOLS_USERNAME }}", "password": "${{ secrets.DEV_TOOLS_PASSWORD }}"}]'
-    - run: cat ~/.m2/settings.xml
-    - run: mkdir ~/.clojure && echo '{:mvn/repos {"cognitect-dev-tools" {:url "https://dev-tools.cognitect.com/maven/releases/"}}}' > ~/.clojure/deps.edn
-    - run: cat ~/.clojure/deps.edn
+        servers: '[{"id": "cognitect-dev-tools", "username": "${{ secrets.DEV_TOOLS_USERNAME }}", "password": "${{ secrets.DEV_TOOLS_PASSWORD }}"}]'
     - run: clojure -M:test
