@@ -57,3 +57,7 @@
     (is (= (paths nil) nil))
     (is (= (paths {}) '()))
     (is (= (paths {:arrayValue []}) '([[:arrayValue] []])))))
+
+; for backwards compatibility, clojure 1.10 does not have `update-vals`
+(defn update-values [m f]
+  (persistent! (reduce-kv (fn [nm k v] (assoc! nm k (f v))) (transient m) m)))
