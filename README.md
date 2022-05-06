@@ -4,7 +4,7 @@ A pragmatic [Lacinia](https://github.com/walmartlabs/lacinia) schema generator f
 
 Essentially this gives you a neat GraphQL API for your Datomic instance, when combined with [Lacinia-Pedestal](https://github.com/walmartlabs/lacinia-pedestal).
 
-[![state](https://img.shields.io/badge/state-draft_(some_todos_left,_not_optimized)-red.svg)](https://github.com/nottmey/datomic-lacinia/issues)
+[![state](https://img.shields.io/badge/state-draft_(some_todos_left,_not_optimized,_structure_might_change)-red.svg)](https://github.com/nottmey/datomic-lacinia/issues)
 [![feedback](https://img.shields.io/badge/feedback-welcome!_(anything_helps)-informational.svg)](https://github.com/nottmey/datomic-lacinia/issues)
 
 ## Use-case
