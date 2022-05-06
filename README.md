@@ -190,4 +190,4 @@ query {
 
 Copyright © 2022 Malte Nottmeyer
 
-Distributed under the Eclipse Public License 2.0.
+Licensed under the Eclipse Public License, Version 2.0
