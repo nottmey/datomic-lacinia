@@ -24,6 +24,13 @@ jobs:
     - uses: DeLaGuardo/setup-clojure@5.1
       with:
         cli: ${{ matrix.clojure }}
+    - name: Cache Maven repository
+      uses: actions/cache@v3
+      with:
+        path: ~/.m2/repository
+        key: ${{ runner.os }}-${{ matrix.java }}-${{ matrix.clojure }}-maven-${{ hashFiles('deps.edn') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ matrix.java }}-${{ matrix.clojure }}-maven-
     - uses: s4u/maven-settings-action@v2.6.0
       with:
         servers: '[{"id": "cognitect-dev-tools", "username": "${{ secrets.DEV_TOOLS_USERNAME }}", "password": "${{ secrets.DEV_TOOLS_PASSWORD }}"}]'
