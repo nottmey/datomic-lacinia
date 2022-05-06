@@ -1,6 +1,5 @@
 {:paths   ["src"]
- :deps    {com.datomic/client-api {:mvn/version "1.0.58"}
-           org.clojure/clojure    {:mvn/version "1.11.1"}}
+ :deps    {com.datomic/client-api {:mvn/version "1.0.58"}}
  :aliases {:repl {:extra-deps {com.datomic/dev-local   {:mvn/version "1.0.243"}
                                io.aviso/pretty         {:mvn/version "1.1.1"}
                                com.walmartlabs/lacinia {:mvn/version "1.1"}}}
