@@ -149,8 +149,8 @@
                                            (seq (update (vec t) 1 ref->input-ref))
                                            (ref->input-ref t)))
         field->input-field       (fn [f] (update f :type ref-type->input-ref-type))]
-    (-> (update-keys result-objects graphql/input-type-key)
-        (utils/update-values #(update % :fields utils/update-values field->input-field)))))
+    (-> (utils/update-ks result-objects graphql/input-type-key)
+        (utils/update-vs #(update % :fields utils/update-vs field->input-field)))))
 
 (defn gen-schema [{:keys [resolve-db attributes entity-type-key] :or {entity-type-key :Entity}}]
   (let [result-objects (gen-result-objects attributes entity-type-key)
