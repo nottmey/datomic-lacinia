@@ -6,6 +6,7 @@ Essentially this gives you a neat GraphQL API for your Datomic instance, when co
 
 [![state](https://img.shields.io/badge/state-draft_(some_todos_left,_not_optimized,_structure_might_change)-red.svg)](https://github.com/nottmey/datomic-lacinia/issues)
 [![feedback](https://img.shields.io/badge/feedback-welcome!_(anything_helps)-informational.svg)](https://github.com/nottmey/datomic-lacinia/issues)
+[![Tests](https://github.com/nottmey/datomic-lacinia/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/nottmey/datomic-lacinia/actions/workflows/tests.yml)
 
 ## Use-case
 
