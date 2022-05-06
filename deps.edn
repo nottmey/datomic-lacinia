@@ -1,5 +1,7 @@
 {:mvn/repos {"cognitect-dev-tools" {:url "https://dev-tools.cognitect.com/maven/releases/"}}
- :deps      {com.datomic/client-api {:mvn/version "1.0.58"}}
+ :deps      {com.datomic/client-api {:mvn/version "1.0.58"}
+             ;; min. supported clojure version
+             org.clojure/clojure    {:mvn/version "1.10.3"}}
  :paths     ["src"]
  :aliases   {:repl {:extra-deps {com.datomic/dev-local   {:mvn/version "1.0.243"}
                                  io.aviso/pretty         {:mvn/version "1.1.1"}
