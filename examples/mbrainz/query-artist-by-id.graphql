@@ -1,0 +1,20 @@
+query($id: ID!) { # with database id for temp id "1"
+    get(id: $id) {
+        # generic type "Entity"
+        db {
+            # all attributes of namespace "db"
+            id
+        }
+        artist {
+            # all attributes of namespace "artist"
+            name
+            type {
+                # :artist/type is a ref, so we are in type "Entity" again
+                db {
+                    # keywords are just values
+                    ident
+                }
+            }
+        }
+    }
+}

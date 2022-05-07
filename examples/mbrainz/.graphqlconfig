@@ -1,0 +1,12 @@
+{
+  "name": "MusicBrainz Example GraphQL Schema",
+  "schemaPath": "mbrainz.graphql",
+  "extensions": {
+    "endpoints": {
+      "Default GraphQL Endpoint": {
+        "url": "http://localhost:8888/api",
+        "introspect": true
+      }
+    }
+  }
+}

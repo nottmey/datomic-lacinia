@@ -11,6 +11,8 @@
 
 (defonce server nil)
 
+(defonce ^:dynamic browser? true)
+
 (defn start! [tx-attributes tx-data]
   (alter-var-root
     #'server
@@ -29,12 +31,17 @@
                                 (lp/default-service nil)
                                 http/create-server
                                 http/start)]
-        (browse-url "http://localhost:8888/ide")
+        (when browser?
+          (browse-url "http://localhost:8888/ide"))
         server)))
   :started)
 
 (defn start-mbrainz! []
   (start! mbrainz/tx-attributes mbrainz/tx-data))
+
+(defn start-mbrainz-via-deps! [_]
+  (with-bindings {#'browser? false}
+    (start-mbrainz!)))
 
 (defn stop! []
   (alter-var-root

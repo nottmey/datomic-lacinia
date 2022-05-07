@@ -1,0 +1,88 @@
+# This file was generated based on ".graphqlconfig". Do not edit manually.
+
+schema {
+    query: Query
+}
+
+"Any entity of this application."
+type Entity {
+    "Nested data :artist as type :EntityArtist"
+    artist: EntityArtist
+    "Nested data :db as type :EntityDb"
+    db: EntityDb
+    "Nested data :referencedBy as type :EntityReferencedBy"
+    referencedBy: EntityReferencedBy
+}
+
+"Nested data of attribute :artist on type :Entity"
+type EntityArtist {
+    "The artist's name"
+    name: String
+    "Enum, one of :artist.type/person, :artist.type/other, :artist.type/group."
+    type: Entity
+}
+
+"Nested data of attribute :db on type :Entity"
+type EntityDb {
+    "Attribute used to uniquely identify an entity, managed by Datomic."
+    id: ID
+    "Attribute used to uniquely name an entity."
+    ident: String
+}
+
+"Nested data of attribute :referencedBy on type :Entity"
+type EntityReferencedBy {
+    "Nested data :artist as type :EntityReferencedByArtist"
+    artist: EntityReferencedByArtist
+}
+
+"Nested data of attribute :artist on type :EntityReferencedBy"
+type EntityReferencedByArtist {
+    "Holds all entities which referencing via :artist/type"
+    type: [Entity]
+}
+
+type Query {
+    "Access any entity by its unique id, if it exists."
+    get(id: ID): Entity
+    "Access any entity by matching fields."
+    match(template: EntityRequest): [Entity]
+}
+
+"Nested data of attribute :artist on type :Entity"
+input EntityArtistRequest {
+    "The artist's name"
+    name: String
+    "Enum, one of :artist.type/person, :artist.type/other, :artist.type/group."
+    type: EntityRequest
+}
+
+"Nested data of attribute :db on type :Entity"
+input EntityDbRequest {
+    "Attribute used to uniquely identify an entity, managed by Datomic."
+    id: ID
+    "Attribute used to uniquely name an entity."
+    ident: String
+}
+
+"Nested data of attribute :artist on type :EntityReferencedBy"
+input EntityReferencedByArtistRequest {
+    "Holds all entities which referencing via :artist/type"
+    type: [EntityRequest]
+}
+
+"Nested data of attribute :referencedBy on type :Entity"
+input EntityReferencedByRequest {
+    "Nested data :artist as type :EntityReferencedByArtist"
+    artist: EntityReferencedByArtistRequest
+}
+
+"Any entity of this application."
+input EntityRequest {
+    "Nested data :artist as type :EntityArtist"
+    artist: EntityArtistRequest
+    "Nested data :db as type :EntityDb"
+    db: EntityDbRequest
+    "Nested data :referencedBy as type :EntityReferencedBy"
+    referencedBy: EntityReferencedByRequest
+}

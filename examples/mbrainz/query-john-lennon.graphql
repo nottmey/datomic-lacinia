@@ -1,0 +1,19 @@
+query {
+    match(template: {
+        artist: {
+            name: "John Lennon"
+        }
+    }) {
+        db {
+            id
+        }
+        artist {
+            name
+            type {
+                db {
+                    ident
+                }
+            }
+        }
+    }
+}
