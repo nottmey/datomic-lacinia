@@ -3,13 +3,16 @@
              ;; min. supported clojure version
              org.clojure/clojure    {:mvn/version "1.10.3"}}
  :paths     ["src"]
- :aliases   {:repl {:extra-deps {com.datomic/dev-local   {:mvn/version "1.0.243"}
-                                 io.aviso/pretty         {:mvn/version "1.1.1"}
-                                 com.walmartlabs/lacinia {:mvn/version "1.1"}}}
+ :aliases   {:repl {:extra-paths ["repl" "test"]
+                    :extra-deps  {com.datomic/dev-local            {:mvn/version "1.0.243"}
+                                  io.aviso/pretty                  {:mvn/version "1.1.1"}
+                                  com.walmartlabs/lacinia          {:mvn/version "1.1"}
+                                  com.walmartlabs/lacinia-pedestal {:mvn/version "1.1"}
+                                  org.slf4j/slf4j-nop              {:mvn/version "1.7.36"}}}
              :test {:extra-paths ["test"]
-                    :extra-deps  {com.datomic/dev-local   {:mvn/version "1.0.243"}
+                    :extra-deps  {lambdaisland/kaocha     {:mvn/version "1.66.1034"}
+                                  com.datomic/dev-local   {:mvn/version "1.0.243"}
                                   io.aviso/pretty         {:mvn/version "1.1.1"}
                                   com.walmartlabs/lacinia {:mvn/version "1.1"}
-                                  org.slf4j/slf4j-nop     {:mvn/version "1.7.36"}
-                                  lambdaisland/kaocha     {:mvn/version "1.66.1034"}}
+                                  org.slf4j/slf4j-nop     {:mvn/version "1.7.36"}}
                     :main-opts   ["-m" "kaocha.runner"]}}}
