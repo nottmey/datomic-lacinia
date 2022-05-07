@@ -53,9 +53,11 @@ Possible use-case in the future: Allowing you to move your schema or database wh
 
 ### Namespaced Keys
 
-GraphQL does not know about namespaced keys. Adding the namespace to the key (e.g. mapping `:medium.format/name` to e.g. `medium_format__name`) is not convenient in usage and might cause collisions (you will need to find a bidirectional mapping). Also, `camelCase` is the default naming convention for GraphQL fields, which only gives you one way to differentiate a word break. 
+GraphQL does not know about namespaced keys, and it only allows field names in `[_A-Za-z][_0-9A-Za-z]*` form, because it's generators target different language platforms.
 
-Ultimately, in GraphQL the default is to provide context via nesting, not so much via prefixing. That's why I chose to map e.g. `:medium.format/name` to `medium { format { name } }` instead.
+Adding the namespace to the key (e.g. mapping `:medium.format/name` to e.g. `medium_format__name`) is not convenient in usage and might cause collisions (you will need to find a bidirectional mapping). Also, `camelCase` is the default naming convention for GraphQL fields, which only gives you one way to differentiate a word break.
+
+Ultimately, in GraphQL the default is to provide context via nesting, not so much via prefixing. That's why I chose to map e.g. `:medium.format/name` to `medium { format { name } }` instead. This does not solve the collision problem though, e.g. when you have an attribute `:medium/format` and `:medium.format/name` on the same entity. This remains an open issue, even though it is an uncommon edge case. ⚠️
 
 ### IDs
 
