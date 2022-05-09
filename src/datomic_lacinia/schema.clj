@@ -59,6 +59,7 @@
                                          [%])))
                                (map #(map keyword %))
                                (map #(cons entity-type-key %)))]
+    ;; TODO add collision detection and make sure the first attribute wins
     ;; TODO check results
     (loop [objects         {entity-type-key {:description "Any entity of this application."}}
            remaining-paths path-to-attribute]
@@ -167,6 +168,7 @@
     ;; TODO add 'what else is available field to entity, etc?'
     ;; TODO use https://github.com/vlaaad/plusinia for optimization
     ;; TODO try out https://github.com/Datomic/ion-starter
+    ;; TODO keep field intact when attribute renaming happens (old request don't break)
     {:objects       result-objects
      :input-objects (gen-input-objects result-objects)
      :queries       {:get   {:type        entity-type-key
