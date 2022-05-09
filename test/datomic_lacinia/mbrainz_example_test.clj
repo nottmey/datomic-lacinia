@@ -52,20 +52,20 @@
     (let [r (testing/execute s "mbrainz/query-artist-by-id.graphql" {:id (id "1")})]
       (println "Example 1:")
       (json/pprint r)
-      (is (= (get-in r [:data :get :db :id]) (id "1")))
-      (is (= (get-in r [:data :get :artist :name]) "Led Zeppelin"))
-      (is (= (get-in r [:data :get :artist :type :db :ident]) ":artist.type/group")))
+      (is (= (get-in r [:data :get :db_ :id]) (id "1")))
+      (is (= (get-in r [:data :get :artist_ :name]) "Led Zeppelin"))
+      (is (= (get-in r [:data :get :artist_ :type :db_ :ident]) ":artist.type/group")))
 
     (let [r (testing/execute s "mbrainz/query-john-lennon.graphql" nil)]
       (println "Example 2:")
       (json/pprint r)
       (is (= (count (get-in r [:data :match])) 1))
-      (is (= (get-in r [:data :match 0 :db :id]) (id "2")))
-      (is (= (get-in r [:data :match 0 :artist :name]) "John Lennon"))
-      (is (= (get-in r [:data :match 0 :artist :type :db :ident]) ":artist.type/person")))
+      (is (= (get-in r [:data :match 0 :db_ :id]) (id "2")))
+      (is (= (get-in r [:data :match 0 :artist_ :name]) "John Lennon"))
+      (is (= (get-in r [:data :match 0 :artist_ :type :db_ :ident]) ":artist.type/person")))
 
     (let [r (testing/execute s "mbrainz/query-group-artists.graphql" nil)]
       (is (= (count (get-in r [:data :match])) 2))
-      (is (= (get-in r [:data :match 0 :artist :name]) "Led Zeppelin"))
-      (is (= (get-in r [:data :match 1 :artist :name]) "The Beatles")))))
+      (is (= (get-in r [:data :match 0 :artist_ :name]) "Led Zeppelin"))
+      (is (= (get-in r [:data :match 1 :artist_ :name]) "The Beatles")))))
 

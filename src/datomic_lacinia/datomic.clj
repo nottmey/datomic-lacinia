@@ -15,12 +15,12 @@
   ([db] (attributes db nil))
   ([db nss]
    (->> (if nss
-          (d/q '[:find (pull ?e pattern)
+          (d/q '[:find (pull ?e pattern) ?tx
                  :in $ pattern ?nss
                  :where
                  [?e :db/valueType _]
                  [?e :db/cardinality _]
-                 [?e :db/ident ?ident]
+                 [?e :db/ident ?ident ?tx]
                  [(namespace ?ident) ?ns]
                  [(contains? ?nss ?ns)]]
                db
@@ -33,7 +33,8 @@
                  [?e :db/cardinality _]]
                db
                attributes-pattern))
-        (map first))))
+        ;; todo sort by tx -> collision prevention
+        #_(map first))))
 
 (deftest- attributes-test
   (let [as     (attributes (d/db (local-temp-conn)))

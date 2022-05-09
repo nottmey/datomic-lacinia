@@ -49,6 +49,13 @@ Possible use-case in the future: Allowing you to move your schema or database wh
 ;        (com.walmartlabs.lacinia.schema/compile lacinia-schema) nil)))
 ```
 
+## Design Principles
+
+1. Make it run out of the box, on any schema, even with "chaotic" history and rare feature usage. 
+2. Make it easy to adhere to the GraphQL specification, so any client-side programmer is keen to use it.
+3. Decisions you do while setting up this library, should not cause you headaches in the future. 
+4. Unsupported edge-cases of a specific context are reported at configuration time.
+
 ## Considerations
 
 ### Namespaced Keys
@@ -57,7 +64,27 @@ GraphQL does not know about namespaced keys, and it only allows field names in `
 
 Adding the namespace to the key (e.g. mapping `:medium.format/name` to e.g. `medium_format__name`) is not convenient in usage and might cause collisions (you will need to find a bidirectional mapping). Also, `camelCase` is the default naming convention for GraphQL fields, which only gives you one way to differentiate a word break.
 
-Ultimately, in GraphQL the default is to provide context via nesting, not so much via prefixing. That's why I chose to map e.g. `:medium.format/name` to `medium { format { name } }` instead. This does not solve the collision problem though, e.g. when you have an attribute `:medium/format` and `:medium.format/name` on the same entity. This remains an open issue, even though it is an uncommon edge case. ⚠️
+Ultimately, in GraphQL the default is to provide context via nesting, not so much via prefixing. That's why I chose to map e.g. `:medium.format/name` to `medium_ { format_ { name } }` instead. 
+
+#### Note on the `_` postfix 
+
+Using nesting alone does not solve the collision problem. For example attributes `:medium/format` and `:medium.format/name` would cause a collision without it, but can happily co-exist with it: `{ medium_ { format format_ { name }}}`
+
+That's why the mapping needs to differentiate namespace nesting and actual fields. I choose post-fixing, because it interferes less with typing the queries, and it doesn't have an overlap with other semantics (`__` prefix is used for introspection, `_` prefix means "private" in some contexts). I choose to apply it to the attribute namespace rather than the attribute name, because namespaces are common to overlap, so it minimizes character overhead. (You have equal or more as many attributes as attribute namespaces.)
+
+As a benefit, you can clearly see when you leave the entity context and may find scalar values. That's why it's a good default, even though it's implemented to prevent an edge case. (Also, a valid decision in the past – e.g. naming a field – should not cause you harm, when doing another valid decision in the future – e.g. naming another field.)
+
+### Special Characters
+
+In GraphQL, field names must adhere to `[_A-Za-z][_0-9A-Za-z]*`, case is relevant, and `camelCase` is expected. Clojure however allows a much larger variety of characters, including "the elephant in the room" `-`. 
+
+So, either the mapping discards every non-valid attribute, or it tries the best effort approach and introduces the possibility of naming collisions. Because this library should allow you to run a valid GraphQL API out of the box, I choose the best effort approach and to deal with the naming collisions in a predictable manner.
+
+Most likely, you are already doing `camelCase`, `snake_case`, or `lisp-case`. Therefore, any `_` and `-` inside a word is dropped and the following character is ensured to be uppercase. Afterwards every special character, including `_`, is dropped. If your schema was doing this to differentiate attributes, you probably wanted to hide or rename such attributes on API level anyway. If your schema is doing `stUdlY_cAps`, it becomes `stUdlYCAps` and renaming on API level is advised!
+
+This will eventually cause collisions. For example, both `:any/hello_world%` and `:any/__helloWorld` will result in field `any { helloWorld }`. The important parts are that this collision will be reported at configuration time and that adding attributes does not overwrite previous ones, such that your API remains stable over time.
+
+I solved this by sorting the input attributes by the transaction id of the `:db/ident` in increasing order (so, old to new). Attributes with the lower transaction id take precedence over the ones with higher transaction id. So, the newer version of a colliding attributes doesn't appear in the API, until a name overwrite is configured on API level.
 
 ### IDs
 
