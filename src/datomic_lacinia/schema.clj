@@ -3,43 +3,43 @@
             [datomic-lacinia.types :as types]
             [datomic-lacinia.datomic :as datomic]
             [datomic-lacinia.graphql :as graphql]
-            [com.walmartlabs.lacinia.resolve :as resolve]
-            [clojure.string :as str]))
+            [datomic-lacinia.resolvers :as resolvers]
+            [clojure.test :refer [deftest- is]]
+            [clojure.string :as str]
+            [datomic.client.api :as d]
+            [datomic-lacinia.testing :as testing]))
 
-(defn gql-field-config [attribute default-entity-type]
-  (let [attribute-ident (:db/ident attribute)
-        attribute-type  (:db/ident (:db/valueType attribute))
-        type-config     {:type         (types/gql-type attribute default-entity-type)
-                         :db/attribute attribute-ident
-                         :db/type      attribute-type
-                         :resolve      (fn [{:keys [db eid]} _ _]
-                                         (let [db-value      (datomic/value db eid attribute-ident)
-                                               resolve-value #(if (map? %)
-                                                                (resolve/with-context {} {:eid (:db/id %)})
-                                                                (types/parse-db-value % attribute-type attribute-ident))]
-                                           (if (sequential? db-value)
-                                             (map resolve-value db-value)
-                                             (resolve-value db-value))))}]
+(defn gen-field-config [attribute default-entity-type]
+  (let [attribute-ident       (:db/ident attribute)
+        attribute-type        (:db/ident (:db/valueType attribute))
+        attribute-cardinality (:db/ident (:db/cardinality attribute))
+        type-config           {:type         (types/gql-type
+                                               attribute-ident
+                                               attribute-type
+                                               attribute-cardinality
+                                               default-entity-type)
+                               :db/attribute attribute-ident
+                               :db/type      attribute-type
+                               :resolve      (resolvers/field-resolver attribute-ident attribute-type)}]
     (if-let [description (:db/doc attribute)]
       (assoc type-config :description description)
       type-config)))
 
-(comment
-  (second (vals (datomic/attributes (datomic/current-db))))
-  (gql-field-config (second (vals (datomic/attributes (datomic/current-db)))) :Entity))
+(deftest- gen-field-config-test
+  (let [db    (d/db (testing/local-temp-conn))
+        field (gen-field-config
+                (->> (datomic/attributes db)
+                     (filter #(= (:db/ident %) :db/ident))
+                     (first))
+                :Entity)]
+    (is (= (get field :type) :String))
+    (is (= (get field :db/attribute) :db/ident))
+    (is (= (get field :db/type) :db.type/keyword))
+    (is (= (get field :description) (:db/doc datomic/default-ident-attribute)))
+    (is (= ((get field :resolve) {:db db :eid 0} nil nil) ":db.part/db"))))
 
 (defn gen-result-objects [attributes entity-type-key]
-  (let [attributes-index  (->> attributes
-                               (concat [{:db/ident       :db/id
-                                         :db/valueType   {:db/ident :db.type/long}
-                                         :db/cardinality {:db/ident :db.cardinality/one}
-                                         :db/unique      {:db/ident :db.unique/identity},
-                                         :db/doc         "Attribute used to uniquely identify an entity, managed by Datomic."}
-                                        {:db/ident       :db/ident,
-                                         :db/valueType   {:db/ident :db.type/keyword},
-                                         :db/cardinality {:db/ident :db.cardinality/one},
-                                         :db/unique      {:db/ident :db.unique/identity},
-                                         :db/doc         "Attribute used to uniquely name an entity."}])
+  (let [attributes-index  (->> (concat datomic/default-attributes attributes)
                                (mapcat
                                  (fn [v]
                                    (if (= (get-in v [:db/valueType :db/ident]) :db.type/ref)
@@ -53,15 +53,14 @@
         path-to-attribute (->> (keys attributes-index)
                                (map #(let [back-ref? (str/starts-with? (name %) "_")]
                                        (concat
-                                         (if back-ref? [:referencedBy] []) ;; TODO make this a configurable
+                                         (if back-ref? [:referencedBy] [])
                                          (if (namespace %) (str/split (namespace %) #"\.") [])
                                          (if back-ref? [(subs (name %) 1)] [(name %)])
                                          [%])))
                                (map #(map keyword %))
                                (map #(cons entity-type-key %)))]
     ;; TODO add collision detection and make sure the first attribute wins
-    ;; TODO check results
-    (loop [objects         {entity-type-key {:description "Any entity of this application."}}
+    (loop [objects         {entity-type-key {:description "An entity of this application."}}
            remaining-paths path-to-attribute]
       (if-let [[object raw-field attribute-ident-or-nested-raw-field & tail] (first remaining-paths)]
         (if tail
@@ -83,7 +82,7 @@
           (let [attribute-ident attribute-ident-or-nested-raw-field
                 attribute       (get attributes-index attribute-ident)
                 field-name      (graphql/field-key raw-field)
-                field-config    (gql-field-config attribute entity-type-key)]
+                field-config    (gen-field-config attribute entity-type-key)]
             (recur
               (assoc-in objects [object :fields field-name] field-config)
               (rest remaining-paths))))
@@ -109,41 +108,6 @@
                                :doc         "Artists who had influences on the style of this track"}]]
     (gen-result-objects schema-with-refs :Entity)))
 
-(defn db-paths-with-values [input-object gql-objects default-entity-type]
-  (->>
-    (utils/paths input-object)
-    (map
-      (fn [[ks v]]
-        (loop [gql-context   (get gql-objects default-entity-type)
-               gql-path      ks
-               db-path       []
-               db-value-type nil]
-          (if-let [current-field (first gql-path)]
-            (let [current-attribute   (get-in gql-context [:fields current-field :db/attribute])
-                  next-type           (get-in gql-context [:fields current-field :type]) ; potentially '(list <type>)
-                  next-type-unwrapped (if (list? next-type) (second next-type) next-type)]
-              (recur
-                (get gql-objects next-type-unwrapped)
-                (rest gql-path)
-                (if current-attribute
-                  (conj db-path current-attribute)
-                  db-path)
-                (get-in gql-context [:fields current-field :db/type])))
-            [db-path
-             (types/parse-gql-value v db-value-type (last db-path))]))))))
-
-(comment
-  (let [input-object {:db {:id "130" :cardinality {:db {:ident ":db.cardinality/many"}}}}
-        db           (datomic/current-db)
-        gql-objects  (gen-result-objects (datomic/attributes db) :Entity)]
-    (db-paths-with-values input-object gql-objects :Entity))
-
-  (let [input-object {:referencedBy {:track {:artists [{:track {:name "Moby Dick"}}]}}}
-        db           (datomic/current-db)
-        gql-objects  (gen-result-objects (datomic/attributes db) :Entity)]
-    (db-paths-with-values input-object gql-objects :Entity)))
-
-
 (defn gen-input-objects [result-objects]
   (let [ref->input-ref           (fn [k] (if (get result-objects k) (graphql/input-type-key k) k))
         ref-type->input-ref-type (fn [t] (if (seq? t)
@@ -153,30 +117,26 @@
     (-> (utils/update-ks result-objects graphql/input-type-key)
         (utils/update-vs #(update % :fields utils/update-vs field->input-field)))))
 
+
+; TODO add time basis to requests
+; TODO add database query to tracing (or own tracing mode for it)
+; TODO add 'what else is available field to entity, etc?'
+; TODO use https://github.com/vlaaad/plusinia for optimization
+; TODO try out https://github.com/Datomic/ion-starter
+; TODO keep field intact when attribute renaming happens (old request don't break)
+; TODO add security (query limiting, authorization, etc.)
+; TODO add configuration options for schema features
+
 (defn gen-schema [{:keys [resolve-db attributes entity-type-key] :or {entity-type-key :Entity}}]
-  (let [result-objects (gen-result-objects attributes entity-type-key)
-        get-resolver   (fn [_ {:keys [id]} _]
-                         ;; TODO check id, if available etc.
-                         (resolve/with-context {} {:eid (Long/valueOf ^String id) :db (resolve-db)}))
-        match-resolver (fn [_ {:keys [template]} _]
-                         (let [db       (resolve-db)
-                               db-paths (db-paths-with-values template result-objects entity-type-key)
-                               results  (datomic/matches db db-paths)]
-                           (map #(resolve/with-context {} {:eid % :db db}) results)))]
-    ;; TODO add time basis to requests
-    ;; TODO add database query to tracing (or own tracing mode for it)
-    ;; TODO add 'what else is available field to entity, etc?'
-    ;; TODO use https://github.com/vlaaad/plusinia for optimization
-    ;; TODO try out https://github.com/Datomic/ion-starter
-    ;; TODO keep field intact when attribute renaming happens (old request don't break)
+  (let [result-objects (gen-result-objects attributes entity-type-key)]
     {:objects       result-objects
      :input-objects (gen-input-objects result-objects)
      :queries       {:get   {:type        entity-type-key
                              :description "Access any entity by its unique id, if it exists."
                              :args        {:id {:type :ID}}
-                             :resolve     get-resolver}
+                             :resolve     (resolvers/get-resolver resolve-db)}
                      :match {:type        (list 'list entity-type-key)
                              :description "Access any entity by matching fields."
                              :args        {:template {:type (graphql/input-type-key entity-type-key)}}
-                             :resolve     match-resolver}}}))
+                             :resolve     (resolvers/match-resolver resolve-db result-objects entity-type-key)}}}))
 
