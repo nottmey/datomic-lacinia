@@ -1,14 +1,14 @@
 query {
     match(template: {
-        artist: {
+        artist_: {
             type: {
-                db: {
+                db_: {
                     ident: ":artist.type/group"
                 }
             }
         }
     }) {
-        artist {
+        artist_ {
             name
         }
     }

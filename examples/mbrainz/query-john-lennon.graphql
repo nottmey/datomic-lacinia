@@ -1,16 +1,16 @@
 query {
     match(template: {
-        artist: {
+        artist_: {
             name: "John Lennon"
         }
     }) {
-        db {
+        db_ {
             id
         }
-        artist {
+        artist_ {
             name
             type {
-                db {
+                db_ {
                     ident
                 }
             }

@@ -48,6 +48,7 @@
                                                 :resolve-db #(d/db conn)}))]
 
     ; TODO test introspection
+    ; TODO edge cases (expected data missing, id missing, etc.)
 
     (let [r (testing/execute s "mbrainz/query-artist-by-id.graphql" {:id (id "1")})]
       (println "Example 1:")

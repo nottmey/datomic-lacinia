@@ -1,10 +1,29 @@
 (ns datomic-lacinia.datomic
   (:require [datomic.client.api :as d]
-            [datomic-lacinia.testing :refer [local-temp-conn]]
             [clojure.string :as str]
-            [clojure.test :refer [deftest- is]]))
+            [clojure.test :refer [deftest- is]]
+            [datomic-lacinia.testing :as testing]))
 
-(def attributes-pattern
+
+(def default-id-attribute
+  {:db/ident       :db/id
+   :db/valueType   {:db/ident :db.type/long}
+   :db/cardinality {:db/ident :db.cardinality/one}
+   :db/unique      {:db/ident :db.unique/identity},
+   :db/doc         "Attribute used to uniquely identify an entity, managed by Datomic."})
+
+(def default-ident-attribute
+  {:db/ident       :db/ident,
+   :db/valueType   {:db/ident :db.type/keyword},
+   :db/cardinality {:db/ident :db.cardinality/one},
+   :db/unique      {:db/ident :db.unique/identity},
+   :db/doc         "Attribute used to uniquely name an entity."})
+
+(def default-attributes
+  [default-id-attribute
+   default-ident-attribute])
+
+(def relevant-attribute-keys
   [:db/ident
    :db/valueType
    :db/cardinality
@@ -24,7 +43,7 @@
                  [(namespace ?ident) ?ns]
                  [(contains? ?nss ?ns)]]
                db
-               attributes-pattern
+               relevant-attribute-keys
                (set nss))
           (d/q '[:find (pull ?e pattern)
                  :in $ pattern
@@ -32,18 +51,18 @@
                  [?e :db/valueType _]
                  [?e :db/cardinality _]]
                db
-               attributes-pattern))
-        ;; todo sort by tx -> collision prevention
-        #_(map first))))
+               relevant-attribute-keys))
+        ;; TODO sort by tx -> collision prevention
+        (map first))))
 
 (deftest- attributes-test
-  (let [as     (attributes (d/db (local-temp-conn)))
+  (let [as     (attributes (d/db (testing/local-temp-conn)))
         idents (->> as (map #(:db/ident %)) (set))]
     (is (contains? idents :db/ident))
     (is (contains? idents :db.entity/attrs))
     (is (contains? idents :fressian/tag)))
 
-  (let [as     (attributes (d/db (local-temp-conn)) ["db"])
+  (let [as     (attributes (d/db (testing/local-temp-conn)) ["db"])
         idents (->> as (map #(:db/ident %)) (set))]
     (is (contains? idents :db/ident))
     (is (contains? idents :db/valueType))
@@ -53,6 +72,20 @@
     (is (every? #(= (namespace %) "db") idents))
     (is (every? #(map? (:db/valueType %)) as))
     (is (every? #(map? (:db/cardinality %)) as))))
+
+(defn id-exists? [db eid]
+  (boolean
+    (when (int? eid)
+      (seq (d/datoms db {:index :eavt :components [eid]})))))
+
+(deftest- id-exists?-test
+  (let [db (d/db (testing/local-temp-conn))]
+    (is (id-exists? db 0))
+    (is (not (id-exists? db 123123)))
+    (is (not (id-exists? db "0")))
+    (is (not (id-exists? db 0.0)))
+    (is (not (id-exists? db nil)))
+    (is (not (id-exists? db [])))))
 
 (defn value [db eid attribute]
   (if (= attribute :db/id)

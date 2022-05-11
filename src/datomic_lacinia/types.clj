@@ -44,10 +44,10 @@
   (is (= (parse-db-value "hello" :db.type/string :_) "hello"))
   (is (= (parse-db-value :db.type/long :db.type/keyword :_) ":db.type/long")))
 
-(defn gql-type [attribute default-entity-type]
-  (if (= (:db/ident attribute) :db/id)
+(defn gql-type [attribute-ident attribute-type attribute-cardinality default-entity-type]
+  (if (= attribute-ident :db/id)
     :ID
-    (let [gql-type (condp = (:db/ident (:db/valueType attribute))
+    (let [gql-type (condp = attribute-type
                      :db.type/ref default-entity-type
                      :db.type/boolean :Boolean
                      :db.type/long :Int
@@ -64,6 +64,6 @@
                      :db.type/uri :String                   ;; TODO data handling
                      ;; TODO tuples
                      :db.type/tuple :String)]
-      (condp = (:db/ident (:db/cardinality attribute))
+      (condp = attribute-cardinality
         :db.cardinality/one gql-type
         :db.cardinality/many (list 'list gql-type)))))
