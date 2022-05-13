@@ -10,6 +10,12 @@
 (deftest- back-ref-test
   (is (= :x.y/_z (back-ref :x.y/z))))
 
+(defn back-ref? [k]
+  (str/starts-with? (name k) "_"))
+
+(deftest- back-ref?-test
+  (is (back-ref? :x.y/_z)))
+
 (def default-id-attribute
   {:db/ident       :db/id
    :db/valueType   {:db/ident :db.type/long}

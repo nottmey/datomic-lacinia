@@ -40,59 +40,77 @@
     (is (= (get field :description) (:db/doc datomic/default-ident-attribute)))
     (is (= ((get field :resolve) {:db db :eid 0} nil nil) ":db.part/db"))))
 
+(defn gen-context-field-config [object field]
+  (let [field-type (graphql/response-type object field)]
+    {:type        field-type
+     :description (str "Nested data " field " as type " field-type)
+     :resolve     (resolvers/context-field-resolver)}))
+
 (defn gen-back-ref-attribute [{:keys [db/ident]}]
   {:db/ident       (datomic/back-ref ident),
    :db/valueType   {:db/ident :db.type/ref},
    :db/cardinality {:db/ident :db.cardinality/many}
    :db/doc         (str "Holds all entities which referencing via " ident)})
 
+(defn gen-extended-attributes [attributes]
+  (->> (concat datomic/default-attributes attributes)
+       (mapcat (fn [a]
+                 (if (= (get-in a [:db/valueType :db/ident]) :db.type/ref)
+                   [a (gen-back-ref-attribute a)]
+                   [a])))
+       (map (fn [{:keys [db/ident] :as a}]
+              (vector ident a)))
+       (into {})))
+
+(defn gen-attribute-paths [extended-attributes entity-type-key]
+  (->> (keys extended-attributes)
+       (map #(let [back-ref? (datomic/back-ref? %)]
+               [(concat
+                  [entity-type-key]
+                  ; TODO differentiate between context and value field key
+                  (when back-ref?
+                    [(graphql/field :referencedBy)])
+                  (when (namespace %)
+                    (map graphql/field (str/split (namespace %) #"\.")))
+                  (map graphql/field (if back-ref?
+                                       [(subs (name %) 1)]
+                                       [(name %)])))
+                %]))))
+
+(deftest- gen-attribute-paths-test
+  (let [attribute {:db/ident       :track/artists
+                   :db/valueType   {:db/ident :db.type/ref}
+                   :db/cardinality {:db/ident :db.cardinality/many}}
+        extended  (gen-extended-attributes [attribute])
+        paths     (gen-attribute-paths extended :Entity)]
+    (is (= paths
+           '([(:Entity :db :id) :db/id]
+             [(:Entity :db :ident) :db/ident]
+             [(:Entity :track :artists) :track/artists]
+             [(:Entity :referencedBy :track :artists) :track/_artists])))))
+
 (defn gen-response-objects [attributes entity-type-key]
-  (let [attributes-map    (->> (concat datomic/default-attributes attributes)
-                               (mapcat (fn [a]
-                                         (if (= (get-in a [:db/valueType :db/ident]) :db.type/ref)
-                                           [a (gen-back-ref-attribute a)]
-                                           [a])))
-                               (map (fn [{:keys [db/ident] :as a}]
-                                      (vector ident a)))
-                               (into {}))
-        path-to-attribute (->> (keys attributes-map)
-                               (map #(let [back-ref? (str/starts-with? (name %) "_")]
-                                       (concat
-                                         (if back-ref? [:referencedBy] [])
-                                         (if (namespace %) (str/split (namespace %) #"\.") [])
-                                         (if back-ref? [(subs (name %) 1)] [(name %)])
-                                         [%])))
-                               (map #(map keyword %))
-                               (map #(cons entity-type-key %)))]
-    ; TODO add collision detection and make sure the first attribute wins
-    (loop [objects         {entity-type-key {:description "An entity of this application."}}
-           remaining-paths path-to-attribute]
-      (if-let [[object raw-field attribute-ident-or-nested-raw-field & tail] (first remaining-paths)]
-        (if tail
-          ; TODO extract field config generation to 'gen-context-field-config'
-          (let [nested-raw-field       attribute-ident-or-nested-raw-field
-                field-name             (graphql/field-key raw-field)
-                field-type-name        (graphql/response-type-key object field-name)
-                field-type-description (str "Nested data of attribute " field-name " on type " object)
-                field-description      (str "Nested data " field-name " as type " field-type-name)
-                field-resolver         (resolvers/context-field-resolver)
-                field-config           {:type        field-type-name
-                                        :description field-description
-                                        :resolve     field-resolver}]
+  ; TODO add collision detection and make sure the first attribute wins
+  (let [extended-attributes (gen-extended-attributes attributes)]
+    (loop [response-objects {entity-type-key {:description "An entity of this application."}}
+           [current-path & remaining-paths] (gen-attribute-paths extended-attributes entity-type-key)]
+      (if-let [[[object field nested-field & more-fields] attribute-ident] current-path]
+        (if nested-field
+          (let [field-config    (gen-context-field-config object field)
+                field-type      (:type field-config)
+                field-type-desc (str "Nested data of attribute " field " on type " object)]
             (recur
-              (-> objects
-                  (assoc-in [field-type-name :description] field-type-description)
-                  (assoc-in [object :fields field-name] field-config))
-              (conj (rest remaining-paths)
-                    (concat [field-type-name nested-raw-field] tail))))
-          (let [attribute-ident attribute-ident-or-nested-raw-field
-                attribute       (get attributes-map attribute-ident)
-                field-name      (graphql/field-key raw-field)
-                field-config    (gen-value-field-config attribute entity-type-key)]
+              (-> response-objects
+                  (assoc-in [object :fields field] field-config)
+                  (assoc-in [field-type :description] field-type-desc))
+              (conj remaining-paths
+                    [(concat [field-type nested-field] more-fields) attribute-ident])))
+          (let [attribute    (get extended-attributes attribute-ident)
+                field-config (gen-value-field-config attribute entity-type-key)]
             (recur
-              (assoc-in objects [object :fields field-name] field-config)
-              (rest remaining-paths))))
-        objects))))
+              (assoc-in response-objects [object :fields field] field-config)
+              remaining-paths)))
+        response-objects))))
 
 (deftest- gen-response-objects-test
   (let [objects (gen-response-objects datomic/default-attributes :Entity)]
@@ -171,12 +189,12 @@
                                                                   :description  "Holds all entities which referencing via :track/influencers"}}}}))))
 
 (defn gen-input-objects [response-objects]
-  (let [ref->input-ref           (fn [k] (if (get response-objects k) (graphql/input-type-key k) k))
+  (let [ref->input-ref           (fn [k] (if (get response-objects k) (graphql/input-type k) k))
         ref-type->input-ref-type (fn [t] (if (seq? t)
                                            (seq (update (vec t) 1 ref->input-ref))
                                            (ref->input-ref t)))
         field->input-field       (fn [f] (update f :type ref-type->input-ref-type))]
-    (-> (utils/update-ks response-objects graphql/input-type-key)
+    (-> (utils/update-ks response-objects graphql/input-type)
         (utils/update-vs #(update % :fields utils/update-vs field->input-field)))))
 
 
@@ -199,6 +217,6 @@
                              :resolve     (resolvers/get-resolver resolve-db)}
                      :match {:type        (list 'list entity-type-key)
                              :description "Access any entity by matching fields."
-                             :args        {:template {:type (graphql/input-type-key entity-type-key)}}
+                             :args        {:template {:type (graphql/input-type entity-type-key)}}
                              :resolve     (resolvers/match-resolver resolve-db response-objects entity-type-key)}}}))
 
