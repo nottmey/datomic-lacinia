@@ -3,7 +3,7 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest- is]]))
 
-(defn result-type-key [& type-or-field-keys]
+(defn response-type-key [& type-or-field-keys]
   ;; TODO ensure PascalCase
   ;; TODO ensure valid characters are used
   (->> type-or-field-keys
@@ -12,8 +12,8 @@
        (str/join)
        (keyword)))
 
-(deftest- result-type-key-test
-  (is (= (result-type-key :Entity :abstractRelease) :EntityAbstractRelease)))
+(deftest- response-type-key-test
+  (is (= (response-type-key :Entity :abstractRelease) :EntityAbstractRelease)))
 
 (defn input-type-key [type-key]
   (keyword (str (name type-key) "Request")))

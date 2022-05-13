@@ -40,12 +40,12 @@
     (let [invalid-id (resolver nil {:id "1000"} nil)]
       (is (nil? invalid-id)))))
 
-(defn- db-paths-with-values [input-object gql-objects default-entity-type]
+(defn- db-paths-with-values [input-object response-objects default-entity-type]
   (->>
     (utils/paths input-object)
     (map
       (fn [[ks v]]
-        (loop [gql-context   (get gql-objects default-entity-type)
+        (loop [gql-context   (get response-objects default-entity-type)
                gql-path      ks
                db-path       []
                db-value-type nil]
@@ -54,7 +54,7 @@
                   next-type           (get-in gql-context [:fields current-field :type]) ; potentially '(list <type>)
                   next-type-unwrapped (if (list? next-type) (second next-type) next-type)]
               (recur
-                (get gql-objects next-type-unwrapped)
+                (get response-objects next-type-unwrapped)
                 (rest gql-path)
                 (if current-attribute
                   (conj db-path current-attribute)
@@ -74,9 +74,9 @@
         gql-objects  (gen-result-objects (datomic/attributes db) :Entity)]
     (db-paths-with-values input-object gql-objects :Entity)))
 
-(defn match-resolver [resolve-db result-objects entity-type-key]
+(defn match-resolver [resolve-db response-objects entity-type-key]
   (fn [_ {:keys [template]} _]
     (let [db       (resolve-db)
-          db-paths (db-paths-with-values template result-objects entity-type-key)
+          db-paths (db-paths-with-values template response-objects entity-type-key)
           results  (datomic/matches db db-paths)]
       (map #(resolve/with-context {} {:eid % :db db}) results))))
