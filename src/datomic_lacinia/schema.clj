@@ -38,7 +38,7 @@
     (is (= (get field :description) (:db/doc datomic/default-ident-attribute)))
     (is (= ((get field :resolve) {:db db :eid 0} nil nil) ":db.part/db"))))
 
-(defn gen-result-objects [attributes entity-type-key]
+(defn gen-response-objects [attributes entity-type-key]
   (let [attributes-index  (->> (concat datomic/default-attributes attributes)
                                (mapcat
                                  (fn [v]
@@ -66,7 +66,7 @@
         (if tail
           (let [nested-raw-field       attribute-ident-or-nested-raw-field
                 field-name             (graphql/field-key raw-field)
-                field-type-name        (graphql/result-type-key object field-name)
+                field-type-name        (graphql/response-type-key object field-name)
                 field-type-description (str "Nested data of attribute " field-name " on type " object)
                 field-description      (str "Nested data " field-name " as type " field-type-name)
                 field-resolver         (fn [_ _ _] {})
@@ -88,8 +88,8 @@
               (rest remaining-paths))))
         objects))))
 
-(deftest- gen-result-objects-test
-  (let [objects (gen-result-objects [datomic/default-id-attribute] :Entity)]
+(deftest- gen-response-objects-test
+  (let [objects (gen-response-objects [datomic/default-id-attribute] :Entity)]
     (is (= (testing/clean objects [:resolve])
            {:Entity   {:description "An entity of this application.",
                        :fields      {:db {:type        :EntityDb,
@@ -120,7 +120,7 @@
                                :valueType   #:db{:ident :db.type/ref}
                                :cardinality #:db{:ident :db.cardinality/many}
                                :doc         "Artists who had influences on the style of this track"}]
-        objects          (gen-result-objects schema-with-refs :Entity)]
+        objects          (gen-response-objects schema-with-refs :Entity)]
     (is (= (testing/clean objects [:resolve])
            {:Entity                  {:description "An entity of this application.",
                                       :fields      {:db           {:type :EntityDb, :description "Nested data :db as type :EntityDb"},
@@ -164,13 +164,13 @@
                                                                   :db/type      :db.type/ref,
                                                                   :description  "Holds all entities which referencing via :track/influencers"}}}}))))
 
-(defn gen-input-objects [result-objects]
-  (let [ref->input-ref           (fn [k] (if (get result-objects k) (graphql/input-type-key k) k))
+(defn gen-input-objects [response-objects]
+  (let [ref->input-ref           (fn [k] (if (get response-objects k) (graphql/input-type-key k) k))
         ref-type->input-ref-type (fn [t] (if (seq? t)
                                            (seq (update (vec t) 1 ref->input-ref))
                                            (ref->input-ref t)))
         field->input-field       (fn [f] (update f :type ref-type->input-ref-type))]
-    (-> (utils/update-ks result-objects graphql/input-type-key)
+    (-> (utils/update-ks response-objects graphql/input-type-key)
         (utils/update-vs #(update % :fields utils/update-vs field->input-field)))))
 
 
@@ -184,9 +184,9 @@
 ; TODO add configuration options for schema features
 
 (defn gen-schema [{:keys [resolve-db attributes entity-type-key] :or {entity-type-key :Entity}}]
-  (let [result-objects (gen-result-objects attributes entity-type-key)]
-    {:objects       result-objects
-     :input-objects (gen-input-objects result-objects)
+  (let [response-objects (gen-response-objects attributes entity-type-key)]
+    {:objects       response-objects
+     :input-objects (gen-input-objects response-objects)
      :queries       {:get   {:type        entity-type-key
                              :description "Access any entity by its unique id, if it exists."
                              :args        {:id {:type :ID}}
@@ -194,5 +194,5 @@
                      :match {:type        (list 'list entity-type-key)
                              :description "Access any entity by matching fields."
                              :args        {:template {:type (graphql/input-type-key entity-type-key)}}
-                             :resolve     (resolvers/match-resolver resolve-db result-objects entity-type-key)}}}))
+                             :resolve     (resolvers/match-resolver resolve-db response-objects entity-type-key)}}}))
 
