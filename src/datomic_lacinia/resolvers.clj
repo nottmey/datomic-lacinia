@@ -63,16 +63,29 @@
             [db-path
              (types/parse-graphql-value v db-value-type (last db-path))]))))))
 
-(comment
-  (let [input-object {:db {:id "130" :cardinality {:db {:ident ":db.cardinality/many"}}}}
-        db           (d/db (testing/local-temp-conn))
-        response-objects  (gen-result-objects (datomic/attributes db) :Entity)]
-    (db-paths-with-values input-object response-objects :Entity))
-
-  (let [input-object {:referencedBy {:track {:artists [{:track {:name "Moby Dick"}}]}}}
-        db           (d/db (testing/local-temp-conn))
-        response-objects  (gen-result-objects (datomic/attributes db) :Entity)]
-    (db-paths-with-values input-object response-objects :Entity)))
+(deftest- db-paths-with-values-test
+  (let [artist-name      "<some artist>"
+        song-name        "<some song artist was part of>"
+        input-object     {:artist       {:name artist-name}
+                          :referencedBy {:track {:artists [{:track {:name song-name}}]}}}
+        response-objects {:Entity                  {:fields {:artist       {:type :EntityArtist},
+                                                             :track        {:type :EntityTrack},
+                                                             :referencedBy {:type :EntityReferencedBy}}},
+                          :EntityArtist            {:fields {:name {:type         :String,
+                                                                    :db/attribute :artist/name,
+                                                                    :db/type      :db.type/string}}},
+                          :EntityTrack             {:fields {:name    {:type         :String,
+                                                                       :db/attribute :track/name,
+                                                                       :db/type      :db.type/string},
+                                                             :artists {:type         '(list :Entity),
+                                                                       :db/attribute :track/artists,
+                                                                       :db/type      :db.type/ref}}},
+                          :EntityReferencedBy      {:fields {:track {:type :EntityReferencedByTrack}}},
+                          :EntityReferencedByTrack {:fields {:artists {:type         '(list :Entity),
+                                                                       :db/attribute :track/_artists,
+                                                                       :db/type      :db.type/ref}}}}]
+    (is (= (db-paths-with-values input-object response-objects :Entity)
+           (list [[:artist/name] artist-name] [[:track/_artists :track/name] song-name])))))
 
 (defn match-resolver [resolve-db response-objects entity-type-key]
   (fn [_ {:keys [template]} _]
