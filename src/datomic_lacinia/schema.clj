@@ -9,7 +9,7 @@
             [datomic.client.api :as d]
             [datomic-lacinia.testing :as testing]))
 
-(defn gen-field-config [attribute default-entity-type]
+(defn gen-value-field-config [attribute default-entity-type]
   (let [attribute-ident       (:db/ident attribute)
         attribute-type        (:db/ident (:db/valueType attribute))
         attribute-cardinality (:db/ident (:db/cardinality attribute))
@@ -20,14 +20,16 @@
                                                default-entity-type)
                                :db/attribute attribute-ident
                                :db/type      attribute-type
-                               :resolve      (resolvers/field-resolver attribute-ident attribute-type)}]
+                               :resolve      (resolvers/value-field-resolver
+                                               attribute-ident
+                                               attribute-type)}]
     (if-let [description (:db/doc attribute)]
       (assoc type-config :description description)
       type-config)))
 
-(deftest- gen-field-config-test
+(deftest- gen-value-field-config-test
   (let [db    (d/db (testing/local-temp-conn))
-        field (gen-field-config
+        field (gen-value-field-config
                 (->> (datomic/attributes db)
                      (filter #(= (:db/ident %) :db/ident))
                      (first))
@@ -38,19 +40,22 @@
     (is (= (get field :description) (:db/doc datomic/default-ident-attribute)))
     (is (= ((get field :resolve) {:db db :eid 0} nil nil) ":db.part/db"))))
 
+(defn gen-back-ref-attribute [{:keys [db/ident]}]
+  {:db/ident       (datomic/back-ref ident),
+   :db/valueType   {:db/ident :db.type/ref},
+   :db/cardinality {:db/ident :db.cardinality/many}
+   :db/doc         (str "Holds all entities which referencing via " ident)})
+
 (defn gen-response-objects [attributes entity-type-key]
-  (let [attributes-index  (->> (concat datomic/default-attributes attributes)
-                               (mapcat
-                                 (fn [v]
-                                   (if (= (get-in v [:db/valueType :db/ident]) :db.type/ref)
-                                     [v (-> v
-                                            (update :db/ident #(keyword (namespace %) (str "_" (name %))))
-                                            (assoc-in [:db/cardinality :db/ident] :db.cardinality/many)
-                                            (assoc :db/doc (str "Holds all entities which referencing via " (v :db/ident))))]
-                                     [v])))
-                               (map #(vector (% :db/ident) %))
+  (let [attributes-map    (->> (concat datomic/default-attributes attributes)
+                               (mapcat (fn [a]
+                                         (if (= (get-in a [:db/valueType :db/ident]) :db.type/ref)
+                                           [a (gen-back-ref-attribute a)]
+                                           [a])))
+                               (map (fn [{:keys [db/ident] :as a}]
+                                      (vector ident a)))
                                (into {}))
-        path-to-attribute (->> (keys attributes-index)
+        path-to-attribute (->> (keys attributes-map)
                                (map #(let [back-ref? (str/starts-with? (name %) "_")]
                                        (concat
                                          (if back-ref? [:referencedBy] [])
@@ -59,17 +64,18 @@
                                          [%])))
                                (map #(map keyword %))
                                (map #(cons entity-type-key %)))]
-    ;; TODO add collision detection and make sure the first attribute wins
+    ; TODO add collision detection and make sure the first attribute wins
     (loop [objects         {entity-type-key {:description "An entity of this application."}}
            remaining-paths path-to-attribute]
       (if-let [[object raw-field attribute-ident-or-nested-raw-field & tail] (first remaining-paths)]
         (if tail
+          ; TODO extract field config generation to 'gen-context-field-config'
           (let [nested-raw-field       attribute-ident-or-nested-raw-field
                 field-name             (graphql/field-key raw-field)
                 field-type-name        (graphql/response-type-key object field-name)
                 field-type-description (str "Nested data of attribute " field-name " on type " object)
                 field-description      (str "Nested data " field-name " as type " field-type-name)
-                field-resolver         (fn [_ _ _] {})
+                field-resolver         (resolvers/context-field-resolver)
                 field-config           {:type        field-type-name
                                         :description field-description
                                         :resolve     field-resolver}]
@@ -80,9 +86,9 @@
               (conj (rest remaining-paths)
                     (concat [field-type-name nested-raw-field] tail))))
           (let [attribute-ident attribute-ident-or-nested-raw-field
-                attribute       (get attributes-index attribute-ident)
+                attribute       (get attributes-map attribute-ident)
                 field-name      (graphql/field-key raw-field)
-                field-config    (gen-field-config attribute entity-type-key)]
+                field-config    (gen-value-field-config attribute entity-type-key)]
             (recur
               (assoc-in objects [object :fields field-name] field-config)
               (rest remaining-paths))))

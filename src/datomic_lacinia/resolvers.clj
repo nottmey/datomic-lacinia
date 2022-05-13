@@ -7,7 +7,7 @@
             [datomic-lacinia.testing :as testing]
             [datomic.client.api :as d]))
 
-(defn field-resolver [attribute-ident attribute-type]
+(defn value-field-resolver [attribute-ident attribute-type]
   (fn [{:keys [db eid]} _ _]
     (let [db-value      (datomic/value db eid attribute-ident)
           resolve-value #(if (map? %)
@@ -17,6 +17,9 @@
       (if (sequential? db-value)
         (map resolve-value db-value)
         (resolve-value db-value)))))
+
+(defn context-field-resolver []
+  (fn [_ _ _] {}))
 
 ; TODO generate resolvers for every other identity attribute (see https://docs.datomic.com/on-prem/schema/identity.html)
 

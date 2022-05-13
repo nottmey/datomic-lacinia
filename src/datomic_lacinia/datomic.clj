@@ -4,6 +4,11 @@
             [clojure.test :refer [deftest- is]]
             [datomic-lacinia.testing :as testing]))
 
+(defn back-ref [k]
+  (keyword (namespace k) (str "_" (name k))))
+
+(deftest- back-ref-test
+  (is (= :x.y/_z (back-ref :x.y/z))))
 
 (def default-id-attribute
   {:db/ident       :db/id
