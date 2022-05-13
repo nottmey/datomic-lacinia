@@ -45,34 +45,34 @@
     (utils/paths input-object)
     (map
       (fn [[ks v]]
-        (loop [gql-context   (get response-objects default-entity-type)
-               gql-path      ks
-               db-path       []
-               db-value-type nil]
-          (if-let [current-field (first gql-path)]
-            (let [current-attribute   (get-in gql-context [:fields current-field :db/attribute])
-                  next-type           (get-in gql-context [:fields current-field :type]) ; potentially '(list <type>)
+        (loop [graphql-context (get response-objects default-entity-type)
+               graphql-path    ks
+               db-path         []
+               db-value-type   nil]
+          (if-let [current-field (first graphql-path)]
+            (let [current-attribute   (get-in graphql-context [:fields current-field :db/attribute])
+                  next-type           (get-in graphql-context [:fields current-field :type]) ; potentially '(list <type>)
                   next-type-unwrapped (if (list? next-type) (second next-type) next-type)]
               (recur
                 (get response-objects next-type-unwrapped)
-                (rest gql-path)
+                (rest graphql-path)
                 (if current-attribute
                   (conj db-path current-attribute)
                   db-path)
-                (get-in gql-context [:fields current-field :db/type])))
+                (get-in graphql-context [:fields current-field :db/type])))
             [db-path
-             (types/parse-gql-value v db-value-type (last db-path))]))))))
+             (types/parse-graphql-value v db-value-type (last db-path))]))))))
 
 (comment
   (let [input-object {:db {:id "130" :cardinality {:db {:ident ":db.cardinality/many"}}}}
         db           (d/db (testing/local-temp-conn))
-        gql-objects  (gen-result-objects (datomic/attributes db) :Entity)]
-    (db-paths-with-values input-object gql-objects :Entity))
+        response-objects  (gen-result-objects (datomic/attributes db) :Entity)]
+    (db-paths-with-values input-object response-objects :Entity))
 
   (let [input-object {:referencedBy {:track {:artists [{:track {:name "Moby Dick"}}]}}}
         db           (d/db (testing/local-temp-conn))
-        gql-objects  (gen-result-objects (datomic/attributes db) :Entity)]
-    (db-paths-with-values input-object gql-objects :Entity)))
+        response-objects  (gen-result-objects (datomic/attributes db) :Entity)]
+    (db-paths-with-values input-object response-objects :Entity)))
 
 (defn match-resolver [resolve-db response-objects entity-type-key]
   (fn [_ {:keys [template]} _]

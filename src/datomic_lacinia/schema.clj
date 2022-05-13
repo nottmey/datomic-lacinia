@@ -13,7 +13,7 @@
   (let [attribute-ident       (:db/ident attribute)
         attribute-type        (:db/ident (:db/valueType attribute))
         attribute-cardinality (:db/ident (:db/cardinality attribute))
-        type-config           {:type         (types/gql-type
+        type-config           {:type         (types/graphql-type
                                                attribute-ident
                                                attribute-type
                                                attribute-cardinality
@@ -89,7 +89,7 @@
         objects))))
 
 (deftest- gen-response-objects-test
-  (let [objects (gen-response-objects [datomic/default-id-attribute] :Entity)]
+  (let [objects (gen-response-objects datomic/default-attributes :Entity)]
     (is (= (testing/clean objects [:resolve])
            {:Entity   {:description "An entity of this application.",
                        :fields      {:db {:type        :EntityDb,
