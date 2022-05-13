@@ -3,7 +3,7 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest- is]]))
 
-(defn response-type-key [& type-or-field-keys]
+(defn response-type [& type-or-field-keys]
   ;; TODO ensure PascalCase
   ;; TODO ensure valid characters are used
   (->> type-or-field-keys
@@ -12,25 +12,25 @@
        (str/join)
        (keyword)))
 
-(deftest- response-type-key-test
-  (is (= (response-type-key :Entity :abstractRelease) :EntityAbstractRelease)))
+(deftest- response-type-test
+  (is (= (response-type :Entity :abstractRelease) :EntityAbstractRelease)))
 
-(defn input-type-key [type-key]
-  (keyword (str (name type-key) "Request")))
+(defn input-type [response-type]
+  (keyword (str (name response-type) "Request")))
 
-(deftest- input-type-key-test
-  (is (= (input-type-key :Entity) :EntityRequest)))
+(deftest- input-type-test
+  (is (= (input-type :Entity) :EntityRequest)))
 
-(defn field-key [raw-field]
+(defn field [raw]
   ;; TODO ensure camelCase
   ;; TODO ensure valid characters are used
-  (->> (str/split (name raw-field) #"-")
+  (->> (str/split (name (keyword raw)) #"-")
        (map utils/uppercase-first)
        (str/join)
        (utils/lowercase-first)
        (keyword)))
 
 (deftest- field-key-test
-  (is (= (field-key :initial-import) :initialImport))
-  (is (= (field-key :helloWorld) :helloWorld))
-  (is (= (field-key :Hello) :hello)))
+  (is (= (field :initial-import) :initialImport))
+  (is (= (field :helloWorld) :helloWorld))
+  (is (= (field :Hello) :hello)))
