@@ -3,17 +3,20 @@
             [clojure.string :as str]
             [clojure.test :refer [deftest- is]]))
 
-(defn response-type [& type-or-field-keys]
-  ;; TODO ensure PascalCase
-  ;; TODO ensure valid characters are used
-  (->> type-or-field-keys
-       (map name)
-       (map utils/uppercase-first)
-       (str/join)
-       (keyword)))
+(defn response-type [object field]
+  (let [postfix     "Context"
+        object-name (name object)
+        field-name  (utils/uppercase-first (str/replace (name field) "_" ""))]
+    (if (str/ends-with? object-name postfix)
+      (-> object-name
+          (subs 0 (- (count object-name) (count postfix)))
+          (str field-name postfix)
+          (keyword))
+      (keyword (str field-name postfix)))))
 
 (deftest- response-type-test
-  (is (= (response-type :Entity :abstractRelease) :EntityAbstractRelease)))
+  (is (= (response-type :Entity :abstractRelease_) :AbstractReleaseContext))
+  (is (= (response-type :AbstractReleaseContext :type_) :AbstractReleaseTypeContext)))
 
 (defn input-type [response-type]
   (keyword (str (name response-type) "Request")))
@@ -21,16 +24,26 @@
 (deftest- input-type-test
   (is (= (input-type :Entity) :EntityRequest)))
 
-(defn field [raw]
-  ;; TODO ensure camelCase
-  ;; TODO ensure valid characters are used
-  (->> (str/split (name (keyword raw)) #"-")
-       (map utils/uppercase-first)
-       (str/join)
-       (utils/lowercase-first)
-       (keyword)))
+(defn value-field [raw]
+  (let [cleaned-name (str/replace
+                       (name (keyword raw))
+                       #"[^A-Za-z0-9-_]"
+                       "")]
+    (->> (str/split cleaned-name #"[-_]+")
+         (map utils/uppercase-first)
+         (str/join)
+         (utils/lowercase-first)
+         (keyword))))
 
-(deftest- field-key-test
-  (is (= (field :initial-import) :initialImport))
-  (is (= (field :helloWorld) :helloWorld))
-  (is (= (field :Hello) :hello)))
+(deftest- value-field-test
+  (is (= (value-field :initial%-import) :initialImport))
+  (is (= (value-field :initial__import_) :initialImport))
+  (is (= (value-field :$helloWorld____) :helloWorld))
+  (is (= (value-field :Hell=o) :hello)))
+
+(defn context-field [raw]
+  (keyword (str (name (value-field raw)) "_")))
+
+(deftest- context-field-test
+  (is (= (context-field :artist) :artist_))
+  (is (= (context-field :long-example) :longExample_)))

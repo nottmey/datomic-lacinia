@@ -129,37 +129,37 @@ When you then generate, compile and provide your Datomic-GraphQL-API (see [Usage
 
 ```graphql
 query($id: ID!) { # with database id for temp id "1"
-  get(id: $id) {
-    # generic type "Entity"
-    db {
-      # all attributes of namespace "db"
-      id
-    }
-    artist {
-      # all attributes of namespace "artist"
-      name
-      type {
-        # :artist/type is a ref, so we are in type "Entity" again
-        db {
-          # keywords are just values
-          ident
+    get(id: $id) {
+        # generic type "Entity"
+        db_ {
+            # all attributes of namespace "db"
+            id
         }
-      }
+        artist_ {
+            # all attributes of namespace "artist"
+            name
+            type {
+                # :artist/type is a ref, so we are in type "Entity" again
+                db_ {
+                    # keywords are just values
+                    ident
+                }
+            }
+        }
     }
-  }
 }
 ```
 ```json
 {
   "data": {
     "get": {
-      "db": {
+      "db_": {
         "id": "92358976733259"
       },
-      "artist": {
+      "artist_": {
         "name": "Led Zeppelin",
         "type": {
-          "db": {
+          "db_": {
             "ident": ":artist.type/group"
           }
         }
@@ -173,24 +173,24 @@ query($id: ID!) { # with database id for temp id "1"
 
 ```graphql
 query {
-  # leveraging the power of datalog and full indexing :)
-  match(template: {
-    artist: {
-      name: "John Lennon"
-    }
-  }) {
-    db {
-      id
-    }
-    artist {
-      name
-      type {
-        db {
-          ident
+    # leveraging the power of datalog and full indexing :)
+    match(template: {
+        artist_: {
+            name: "John Lennon"
         }
-      }
+    }) {
+        db_ {
+            id
+        }
+        artist_ {
+            name
+            type {
+                db_ {
+                    ident
+                }
+            }
+        }
     }
-  }
 }
 ```
 ```json
@@ -198,13 +198,13 @@ query {
   "data": {
     "match": [
       {
-        "db": {
+        "db_": {
           "id": "92358976733261"
         },
-        "artist": {
+        "artist_": {
           "name": "John Lennon",
           "type": {
-            "db": {
+            "db_": {
               "ident": ":artist.type/person"
             }
           }

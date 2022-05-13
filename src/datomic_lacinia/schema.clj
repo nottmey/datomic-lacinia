@@ -43,14 +43,14 @@
 (defn gen-context-field-config [object field]
   (let [field-type (graphql/response-type object field)]
     {:type        field-type
-     :description (str "Nested data " field " as type " field-type)
+     :description (str "Nested " (str/replace (name field) "_" "") " data")
      :resolve     (resolvers/context-field-resolver)}))
 
 (defn gen-back-ref-attribute [{:keys [db/ident]}]
   {:db/ident       (datomic/back-ref ident),
    :db/valueType   {:db/ident :db.type/ref},
    :db/cardinality {:db/ident :db.cardinality/many}
-   :db/doc         (str "Holds all entities which referencing via " ident)})
+   :db/doc         (str "Attribute for entities which are referenced via " ident " by another entity")})
 
 (defn gen-extended-attributes [attributes]
   (->> (concat datomic/default-attributes attributes)
@@ -67,14 +67,11 @@
        (map #(let [back-ref? (datomic/back-ref? %)]
                [(concat
                   [entity-type-key]
-                  ; TODO differentiate between context and value field key
                   (when back-ref?
-                    [(graphql/field :referencedBy)])
+                    [(graphql/context-field :referencedBy)])
                   (when (namespace %)
-                    (map graphql/field (str/split (namespace %) #"\.")))
-                  (map graphql/field (if back-ref?
-                                       [(subs (name %) 1)]
-                                       [(name %)])))
+                    (map graphql/context-field (str/split (namespace %) #"\.")))
+                  [(graphql/value-field (if back-ref? (subs (name %) 1) (name %)))])
                 %]))))
 
 (deftest- gen-attribute-paths-test
@@ -84,21 +81,21 @@
         extended  (gen-extended-attributes [attribute])
         paths     (gen-attribute-paths extended :Entity)]
     (is (= paths
-           '([(:Entity :db :id) :db/id]
-             [(:Entity :db :ident) :db/ident]
-             [(:Entity :track :artists) :track/artists]
-             [(:Entity :referencedBy :track :artists) :track/_artists])))))
+           '([(:Entity :db_ :id) :db/id]
+             [(:Entity :db_ :ident) :db/ident]
+             [(:Entity :track_ :artists) :track/artists]
+             [(:Entity :referencedBy_ :track_ :artists) :track/_artists])))))
 
 (defn gen-response-objects [attributes entity-type-key]
   ; TODO add collision detection and make sure the first attribute wins
   (let [extended-attributes (gen-extended-attributes attributes)]
-    (loop [response-objects {entity-type-key {:description "An entity of this application."}}
+    (loop [response-objects {entity-type-key {:description "An entity of this application"}}
            [current-path & remaining-paths] (gen-attribute-paths extended-attributes entity-type-key)]
       (if-let [[[object field nested-field & more-fields] attribute-ident] current-path]
         (if nested-field
           (let [field-config    (gen-context-field-config object field)
                 field-type      (:type field-config)
-                field-type-desc (str "Nested data of attribute " field " on type " object)]
+                field-type-desc (str "Nested data of field '" (str/replace (name field) "_" "") "' on type '" (name object) "'")]
             (recur
               (-> response-objects
                   (assoc-in [object :fields field] field-config)
@@ -115,19 +112,18 @@
 (deftest- gen-response-objects-test
   (let [objects (gen-response-objects datomic/default-attributes :Entity)]
     (is (= (testing/clean objects [:resolve])
-           {:Entity   {:description "An entity of this application.",
-                       :fields      {:db {:type        :EntityDb,
-                                          :description "Nested data :db as type :EntityDb"}}},
-            ; TODO better naming 'DbContext'
-            :EntityDb {:description "Nested data of attribute :db on type :Entity",
-                       :fields      {:id    {:type         :ID,
-                                             :db/attribute :db/id,
-                                             :db/type      :db.type/long,
-                                             :description  "Attribute used to uniquely identify an entity, managed by Datomic."},
-                                     :ident {:type         :String,
-                                             :db/attribute :db/ident,
-                                             :db/type      :db.type/keyword,
-                                             :description  "Attribute used to uniquely name an entity."}}}})))
+           {:DbContext {:description "Nested data of field 'db' on type 'Entity'"
+                        :fields      {:id    {:db/attribute :db/id
+                                              :db/type      :db.type/long
+                                              :description  "Attribute used to uniquely identify an entity, managed by Datomic."
+                                              :type         :ID}
+                                      :ident {:db/attribute :db/ident
+                                              :db/type      :db.type/keyword
+                                              :description  "Attribute used to uniquely name an entity."
+                                              :type         :String}}}
+            :Entity    {:description "An entity of this application"
+                        :fields      {:db_ {:description "Nested db data"
+                                            :type        :DbContext}}}})))
 
   ;; checking for backref
   (let [schema-with-refs [#:db{:ident       :artist/name,
@@ -146,47 +142,52 @@
                                :doc         "Artists who had influences on the style of this track"}]
         objects          (gen-response-objects schema-with-refs :Entity)]
     (is (= (testing/clean objects [:resolve])
-           {:Entity                  {:description "An entity of this application.",
-                                      :fields      {:db           {:type :EntityDb, :description "Nested data :db as type :EntityDb"},
-                                                    :artist       {:type :EntityArtist, :description "Nested data :artist as type :EntityArtist"},
-                                                    :track        {:type :EntityTrack, :description "Nested data :track as type :EntityTrack"},
-                                                    ;; TODO referencedBy_
-                                                    :referencedBy {:type        :EntityReferencedBy,
-                                                                   :description "Nested data :referencedBy as type :EntityReferencedBy"}}},
-            :EntityDb                {:description "Nested data of attribute :db on type :Entity",
-                                      :fields      {:id    {:type         :ID,
-                                                            :db/attribute :db/id,
-                                                            :db/type      :db.type/long,
-                                                            :description  "Attribute used to uniquely identify an entity, managed by Datomic."},
-                                                    :ident {:type         :String,
-                                                            :db/attribute :db/ident,
-                                                            :db/type      :db.type/keyword,
-                                                            :description  "Attribute used to uniquely name an entity."}}},
-            :EntityArtist            {:description "Nested data of attribute :artist on type :Entity",
-                                      :fields      {:name {:type :String, :db/attribute :artist/name, :db/type :db.type/string}}},
-            :EntityTrack             {:description "Nested data of attribute :track on type :Entity",
-                                      :fields      {:name        {:type :String, :db/attribute :track/name, :db/type :db.type/string},
-                                                    :artists     {:type         '(list :Entity),
-                                                                  :db/attribute :track/artists,
-                                                                  :db/type      :db.type/ref,
-                                                                  :description  "Artists who contributed to the track"},
-                                                    :influencers {:type         '(list :Entity),
-                                                                  :db/attribute :track/influencers,
-                                                                  :db/type      :db.type/ref,
-                                                                  :description  "Artists who had influences on the style of this track"}}},
-            ; TODO ReferencedByContext
-            :EntityReferencedBy      {:description "Nested data of attribute :referencedBy on type :Entity",
-                                      :fields      {:track {:type        :EntityReferencedByTrack,
-                                                            :description "Nested data :track as type :EntityReferencedByTrack"}}},
-            :EntityReferencedByTrack {:description "Nested data of attribute :track on type :EntityReferencedBy",
-                                      :fields      {:artists     {:type         '(list :Entity),
-                                                                  :db/attribute :track/_artists,
-                                                                  :db/type      :db.type/ref,
-                                                                  :description  "Holds all entities which referencing via :track/artists"},
-                                                    :influencers {:type         '(list :Entity),
-                                                                  :db/attribute :track/_influencers,
-                                                                  :db/type      :db.type/ref,
-                                                                  :description  "Holds all entities which referencing via :track/influencers"}}}}))))
+           {:ArtistContext            {:description "Nested data of field 'artist' on type 'Entity'"
+                                       :fields      {:name {:db/attribute :artist/name
+                                                            :db/type      :db.type/string
+                                                            :type         :String}}}
+            :DbContext                {:description "Nested data of field 'db' on type 'Entity'"
+                                       :fields      {:id    {:db/attribute :db/id
+                                                             :db/type      :db.type/long
+                                                             :description  "Attribute used to uniquely identify an entity, managed by Datomic."
+                                                             :type         :ID}
+                                                     :ident {:db/attribute :db/ident
+                                                             :db/type      :db.type/keyword
+                                                             :description  "Attribute used to uniquely name an entity."
+                                                             :type         :String}}}
+            :Entity                   {:description "An entity of this application"
+                                       :fields      {:artist_       {:description "Nested artist data"
+                                                                     :type        :ArtistContext}
+                                                     :db_           {:description "Nested db data"
+                                                                     :type        :DbContext}
+                                                     :referencedBy_ {:description "Nested referencedBy data"
+                                                                     :type        :ReferencedByContext}
+                                                     :track_        {:description "Nested track data"
+                                                                     :type        :TrackContext}}}
+            :ReferencedByContext      {:description "Nested data of field 'referencedBy' on type 'Entity'"
+                                       :fields      {:track_ {:description "Nested track data"
+                                                              :type        :ReferencedByTrackContext}}}
+            :ReferencedByTrackContext {:description "Nested data of field 'track' on type 'ReferencedByContext'"
+                                       :fields      {:artists     {:db/attribute :track/_artists
+                                                                   :db/type      :db.type/ref
+                                                                   :description  "Attribute for entities which are referenced via :track/artists by another entity"
+                                                                   :type         '(list :Entity)}
+                                                     :influencers {:db/attribute :track/_influencers
+                                                                   :db/type      :db.type/ref
+                                                                   :description  "Attribute for entities which are referenced via :track/influencers by another entity"
+                                                                   :type         '(list :Entity)}}}
+            :TrackContext             {:description "Nested data of field 'track' on type 'Entity'"
+                                       :fields      {:artists     {:db/attribute :track/artists
+                                                                   :db/type      :db.type/ref
+                                                                   :description  "Artists who contributed to the track"
+                                                                   :type         '(list :Entity)}
+                                                     :influencers {:db/attribute :track/influencers
+                                                                   :db/type      :db.type/ref
+                                                                   :description  "Artists who had influences on the style of this track"
+                                                                   :type         '(list :Entity)}
+                                                     :name        {:db/attribute :track/name
+                                                                   :db/type      :db.type/string
+                                                                   :type         :String}}}}))))
 
 (defn gen-input-objects [response-objects]
   (let [ref->input-ref           (fn [k] (if (get response-objects k) (graphql/input-type k) k))

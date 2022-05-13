@@ -1,4 +1,5 @@
 query {
+    # leveraging the power of datalog and full indexing :)
     match(template: {
         artist_: {
             name: "John Lennon"

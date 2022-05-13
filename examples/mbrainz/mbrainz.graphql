@@ -4,42 +4,30 @@ schema {
     query: Query
 }
 
-"Any entity of this application."
-type Entity {
-    "Nested data :artist as type :EntityArtist"
-    artist: EntityArtist
-    "Nested data :db as type :EntityDb"
-    db: EntityDb
-    "Nested data :referencedBy as type :EntityReferencedBy"
-    referencedBy: EntityReferencedBy
-}
-
-"Nested data of attribute :artist on type :Entity"
-type EntityArtist {
+"Nested data of field 'artist' on type 'Entity'"
+type ArtistContext {
     "The artist's name"
     name: String
     "Enum, one of :artist.type/person, :artist.type/other, :artist.type/group."
     type: Entity
 }
 
-"Nested data of attribute :db on type :Entity"
-type EntityDb {
+"Nested data of field 'db' on type 'Entity'"
+type DbContext {
     "Attribute used to uniquely identify an entity, managed by Datomic."
     id: ID
     "Attribute used to uniquely name an entity."
     ident: String
 }
 
-"Nested data of attribute :referencedBy on type :Entity"
-type EntityReferencedBy {
-    "Nested data :artist as type :EntityReferencedByArtist"
-    artist: EntityReferencedByArtist
-}
-
-"Nested data of attribute :artist on type :EntityReferencedBy"
-type EntityReferencedByArtist {
-    "Holds all entities which referencing via :artist/type"
-    type: [Entity]
+"An entity of this application"
+type Entity {
+    "Nested artist data"
+    artist_: ArtistContext
+    "Nested db data"
+    db_: DbContext
+    "Nested referencedBy data"
+    referencedBy_: ReferencedByContext
 }
 
 type Query {
@@ -49,40 +37,52 @@ type Query {
     match(template: EntityRequest): [Entity]
 }
 
-"Nested data of attribute :artist on type :Entity"
-input EntityArtistRequest {
+"Nested data of field 'artist' on type 'ReferencedByContext'"
+type ReferencedByArtistContext {
+    "Attribute for entities which are referenced via :artist/type by another entity"
+    type: [Entity]
+}
+
+"Nested data of field 'referencedBy' on type 'Entity'"
+type ReferencedByContext {
+    "Nested artist data"
+    artist_: ReferencedByArtistContext
+}
+
+"Nested data of field 'artist' on type 'Entity'"
+input ArtistContextRequest {
     "The artist's name"
     name: String
     "Enum, one of :artist.type/person, :artist.type/other, :artist.type/group."
     type: EntityRequest
 }
 
-"Nested data of attribute :db on type :Entity"
-input EntityDbRequest {
+"Nested data of field 'db' on type 'Entity'"
+input DbContextRequest {
     "Attribute used to uniquely identify an entity, managed by Datomic."
     id: ID
     "Attribute used to uniquely name an entity."
     ident: String
 }
 
-"Nested data of attribute :artist on type :EntityReferencedBy"
-input EntityReferencedByArtistRequest {
-    "Holds all entities which referencing via :artist/type"
+"An entity of this application"
+input EntityRequest {
+    "Nested artist data"
+    artist_: ArtistContextRequest
+    "Nested db data"
+    db_: DbContextRequest
+    "Nested referencedBy data"
+    referencedBy_: ReferencedByContextRequest
+}
+
+"Nested data of field 'artist' on type 'ReferencedByContext'"
+input ReferencedByArtistContextRequest {
+    "Attribute for entities which are referenced via :artist/type by another entity"
     type: [EntityRequest]
 }
 
-"Nested data of attribute :referencedBy on type :Entity"
-input EntityReferencedByRequest {
-    "Nested data :artist as type :EntityReferencedByArtist"
-    artist: EntityReferencedByArtistRequest
-}
-
-"Any entity of this application."
-input EntityRequest {
-    "Nested data :artist as type :EntityArtist"
-    artist: EntityArtistRequest
-    "Nested data :db as type :EntityDb"
-    db: EntityDbRequest
-    "Nested data :referencedBy as type :EntityReferencedBy"
-    referencedBy: EntityReferencedByRequest
+"Nested data of field 'referencedBy' on type 'Entity'"
+input ReferencedByContextRequest {
+    "Nested artist data"
+    artist_: ReferencedByArtistContextRequest
 }
