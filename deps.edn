@@ -1,25 +1,29 @@
 {:mvn/repos {"cognitect-dev-tools" {:url "https://dev-tools.cognitect.com/maven/releases/"}}
- :deps      {com.datomic/client-api {:mvn/version "1.0.58"}
+ :deps      {com.datomic/client-api   {:mvn/version "1.0.58"}
+             io.pedestal/pedestal.log {:mvn/version "0.5.10"}
              ;; min. supported clojure version
-             org.clojure/clojure    {:mvn/version "1.10.3"}}
+             org.clojure/clojure      {:mvn/version "1.10.3"}}
  :paths     ["src"]
- :aliases   {:mbrainz {:extra-paths ["repl" "test"]
+ :aliases   {:mbrainz {:extra-paths ["resources" "repl" "test"]
                        :extra-deps  {com.datomic/dev-local            {:mvn/version "1.0.243"}
                                      io.aviso/pretty                  {:mvn/version "1.1.1"}
                                      com.walmartlabs/lacinia          {:mvn/version "1.1"}
                                      com.walmartlabs/lacinia-pedestal {:mvn/version "1.1"}
-                                     org.slf4j/slf4j-nop              {:mvn/version "1.7.36"}}
+                                     ch.qos.logback/logback-classic   {:mvn/version "1.2.11"}
+                                     ch.qos.logback/logback-core      {:mvn/version "1.2.11"}}
                        :exec-fn     user/start-mbrainz-via-deps!}
-             :repl    {:extra-paths ["repl" "test" "examples"]
+             :repl    {:extra-paths ["resources" "repl" "test" "examples"]
                        :extra-deps  {com.datomic/dev-local            {:mvn/version "1.0.243"}
                                      io.aviso/pretty                  {:mvn/version "1.1.1"}
                                      com.walmartlabs/lacinia          {:mvn/version "1.1"}
                                      com.walmartlabs/lacinia-pedestal {:mvn/version "1.1"}
-                                     org.slf4j/slf4j-nop              {:mvn/version "1.7.36"}}}
-             :test    {:extra-paths ["test" "examples"]
-                       :extra-deps  {lambdaisland/kaocha     {:mvn/version "1.66.1034"}
-                                     com.datomic/dev-local   {:mvn/version "1.0.243"}
-                                     io.aviso/pretty         {:mvn/version "1.1.1"}
-                                     com.walmartlabs/lacinia {:mvn/version "1.1"}
-                                     org.slf4j/slf4j-nop     {:mvn/version "1.7.36"}}
+                                     ch.qos.logback/logback-classic   {:mvn/version "1.2.11"}
+                                     ch.qos.logback/logback-core      {:mvn/version "1.2.11"}}}
+             :test    {:extra-paths ["resources" "test" "examples"]
+                       :extra-deps  {lambdaisland/kaocha            {:mvn/version "1.66.1034"}
+                                     com.datomic/dev-local          {:mvn/version "1.0.243"}
+                                     io.aviso/pretty                {:mvn/version "1.1.1"}
+                                     com.walmartlabs/lacinia        {:mvn/version "1.1"}
+                                     ch.qos.logback/logback-classic {:mvn/version "1.2.11"}
+                                     ch.qos.logback/logback-core    {:mvn/version "1.2.11"}}
                        :main-opts   ["-m" "kaocha.runner"]}}}

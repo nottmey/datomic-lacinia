@@ -7,7 +7,8 @@
             [clojure.test :refer [deftest- is]]
             [clojure.string :as str]
             [datomic.client.api :as d]
-            [datomic-lacinia.testing :as testing]))
+            [datomic-lacinia.testing :as testing]
+            [io.pedestal.log :as log]))
 
 (defn gen-value-field-config [attribute default-entity-type]
   (let [attribute-ident       (:db/ident attribute)
@@ -209,6 +210,7 @@
 ; TODO add configuration options for schema features
 
 (defn gen-schema [{:keys [resolve-db attributes entity-type-key] :or {entity-type-key :Entity}}]
+  (log/debug :msg "generating schema")
   (let [response-objects (gen-response-objects attributes entity-type-key)]
     {:objects       response-objects
      :input-objects (gen-input-objects response-objects)
