@@ -29,7 +29,7 @@
     (condp = db-attribute-type
       ;; the following types don't have a direct counterpart
       :db.type/symbol value                                 ;; TODO data handling
-      :db.type/keyword (if value (str value) value)
+      :db.type/keyword (if value (str value) value)         ;; TODO add option to just use keyword name (with reverse parsing)
       :db.type/instant value                                ;; TODO data handling
       :db.type/uuid value                                   ;; TODO data handling
       :db.type/fn value                                     ;; TODO data handling
