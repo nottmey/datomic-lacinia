@@ -25,10 +25,9 @@
   (is (= (input-type :Entity) :EntityRequest)))
 
 (defn value-field [raw]
-  (let [cleaned-name (str/replace
-                       (name (keyword raw))
-                       #"[^A-Za-z0-9-_]"
-                       "")]
+  (let [cleaned-name (-> (name (keyword raw))
+                         (str/replace #"[^A-Za-z0-9-_]" "")
+                         (str/replace #"^[0-9]+" ""))]
     (->> (str/split cleaned-name #"[-_]+")
          (map utils/uppercase-first)
          (str/join)
@@ -39,7 +38,7 @@
   (is (= (value-field :initial%-import) :initialImport))
   (is (= (value-field :initial__import_) :initialImport))
   (is (= (value-field :$helloWorld____) :helloWorld))
-  (is (= (value-field :Hell=o) :hello)))
+  (is (= (value-field :0Hell=0) :hell0)))
 
 (defn context-field [raw]
   (keyword (str (name (value-field raw)) "_")))
