@@ -42,10 +42,9 @@
     (is (= ((get field :resolve) {:db db :eid 0} nil nil) ":db.part/db"))))
 
 (defn gen-context-field-config [object field]
-  (let [field-type (graphql/response-type object field)]
-    {:type        field-type
-     :description (str "Nested " (str/replace (name field) "_" "") " data")
-     :resolve     (resolvers/context-field-resolver)}))
+  {:type        (graphql/response-type object field)
+   :description (str "Nested " (str/replace (name field) "_" "") " data")
+   :resolve     (resolvers/context-field-resolver)})
 
 (defn gen-back-ref-attribute [{:keys [db/ident]}]
   {:db/ident       (datomic/back-ref ident),
@@ -85,7 +84,18 @@
            '([(:Entity :db_ :id) :db/id]
              [(:Entity :db_ :ident) :db/ident]
              [(:Entity :track_ :artists) :track/artists]
-             [(:Entity :referencedBy_ :track_ :artists) :track/_artists])))))
+             [(:Entity :referencedBy_ :track_ :artists) :track/_artists]))))
+
+  (let [attribute {:db/ident       :0wie%rd.3n-amesp_ace2/arti%sts
+                   :db/valueType   {:db/ident :db.type/ref}
+                   :db/cardinality {:db/ident :db.cardinality/many}}
+        extended  (gen-extended-attributes [attribute])
+        paths     (gen-attribute-paths extended :Entity)]
+    (is (= paths
+           '([(:Entity :db_ :id) :db/id]
+             [(:Entity :db_ :ident) :db/ident]
+             [(:Entity :wierd_ :nAmespAce2_ :artists) :0wie%rd.3n-amesp_ace2/arti%sts]
+             [(:Entity :referencedBy_ :wierd_ :nAmespAce2_ :artists) :0wie%rd.3n-amesp_ace2/_arti%sts])))))
 
 (defn gen-response-objects [attributes entity-type-key]
   ; TODO add collision detection and make sure the first attribute wins
