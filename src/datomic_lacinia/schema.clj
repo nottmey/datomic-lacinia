@@ -47,32 +47,59 @@
    :resolve     (resolvers/context-field-resolver)})
 
 (defn gen-back-ref-attribute [{:keys [db/ident]}]
-  {:db/ident       (datomic/back-ref ident),
+  {::back-ref?     true
+   :db/ident       (datomic/back-ref ident),
    :db/valueType   {:db/ident :db.type/ref},
    :db/cardinality {:db/ident :db.cardinality/many}
    :db/doc         (str "Attribute for entities which are referenced via " ident " by another entity")})
 
+(defn gen-path [entity-type-key back-ref? ident]
+  (concat
+    (when entity-type-key
+      [entity-type-key])
+    (when back-ref?
+      [(graphql/context-field :referencedBy)])
+    (when (namespace ident)
+      (map graphql/context-field (str/split (namespace ident) #"\.")))
+    [(graphql/value-field (if back-ref? (subs (name ident) 1) (name ident)))]))
+
 (defn gen-extended-attributes [attributes]
   (->> (concat datomic/default-attributes attributes)
-       (mapcat (fn [a]
-                 (if (= (get-in a [:db/valueType :db/ident]) :db.type/ref)
-                   [a (gen-back-ref-attribute a)]
-                   [a])))
-       (map (fn [{:keys [db/ident] :as a}]
-              (vector ident a)))
-       (into {})))
+       (reduce
+         (fn [distinct-as {:keys [db/ident] :as a}]
+           (let [unique-path (gen-path nil false ident)]
+             (if-let [path-present (get distinct-as unique-path)]
+               (do
+                 (log/warn :msg "attribute overshadowed!"
+                           :hint "use an alias to make the overshadowed attribute visible"
+                           :overshadowed ident
+                           :already-present (:db/ident path-present)
+                           :fields-path (vec unique-path))
+                 distinct-as)
+               (assoc distinct-as unique-path a))))
+         {})
+       (vals)
+       (mapcat
+         (fn [a]
+           (if (= (get-in a [:db/valueType :db/ident]) :db.type/ref)
+             [a (gen-back-ref-attribute a)]
+             [a])))))
 
 (defn gen-attribute-paths [extended-attributes entity-type-key]
-  (->> (keys extended-attributes)
-       (map #(let [back-ref? (datomic/back-ref? %)]
-               [(concat
-                  [entity-type-key]
-                  (when back-ref?
-                    [(graphql/context-field :referencedBy)])
-                  (when (namespace %)
-                    (map graphql/context-field (str/split (namespace %) #"\.")))
-                  [(graphql/value-field (if back-ref? (subs (name %) 1) (name %)))])
-                %]))))
+  (->> extended-attributes
+       (map (fn [{:keys [db/ident ::back-ref?]}]
+              [(gen-path entity-type-key back-ref? ident) ident]))))
+
+(comment
+  (let [attributes [{:db/ident       :track/%artists
+                     :db/valueType   {:db/ident :db.type/ref}
+                     :db/cardinality {:db/ident :db.cardinality/many}}
+                    {:db/ident       :track/artists
+                     :db/valueType   {:db/ident :db.type/ref}
+                     :db/cardinality {:db/ident :db.cardinality/many}}]
+        extended   (gen-extended-attributes attributes)
+        paths      (gen-attribute-paths extended :Entity)]
+    paths))
 
 (deftest- gen-attribute-paths-test
   (let [attribute {:db/ident       :track/artists
@@ -98,8 +125,11 @@
              [(:Entity :referencedBy_ :wierd_ :nAmespAce2_ :artists) :0wie%rd.3n-amesp_ace2/_arti%sts])))))
 
 (defn gen-response-objects [attributes entity-type-key]
-  ; TODO add collision detection and make sure the first attribute wins
-  (let [extended-attributes (gen-extended-attributes attributes)]
+  (let [extended-attributes     (gen-extended-attributes attributes)
+        extended-attributes-map (->> extended-attributes
+                                     (map (fn [{:keys [db/ident] :as a}]
+                                            (vector ident a)))
+                                     (into {}))]
     (loop [response-objects {entity-type-key {:description "An entity of this application"}}
            [current-path & remaining-paths] (gen-attribute-paths extended-attributes entity-type-key)]
       (if-let [[[object field nested-field & more-fields] attribute-ident] current-path]
@@ -113,7 +143,7 @@
                   (assoc-in [field-type :description] field-type-desc))
               (conj remaining-paths
                     [(concat [field-type nested-field] more-fields) attribute-ident])))
-          (let [attribute    (get extended-attributes attribute-ident)
+          (let [attribute    (get extended-attributes-map attribute-ident)
                 field-config (gen-value-field-config attribute entity-type-key)]
             (recur
               (assoc-in response-objects [object :fields field] field-config)
@@ -121,7 +151,7 @@
         response-objects))))
 
 (deftest- gen-response-objects-test
-  (let [objects (gen-response-objects datomic/default-attributes :Entity)]
+  (let [objects (gen-response-objects [] :Entity)]
     (is (= (testing/clean objects [:resolve])
            {:DbContext {:description "Nested data of field 'db' on type 'Entity'"
                         :fields      {:id    {:db/attribute :db/id
@@ -218,6 +248,7 @@
 ; TODO keep field intact when attribute renaming happens (old request don't break)
 ; TODO add security (query limiting, authorization, etc.)
 ; TODO add configuration options for schema features
+; TODO add configuration option for a map of attribute aliases
 
 (defn gen-schema [{:keys [resolve-db attributes entity-type-key] :or {entity-type-key :Entity}}]
   (log/debug :msg "generating schema")
