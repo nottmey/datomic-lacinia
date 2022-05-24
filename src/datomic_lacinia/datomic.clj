@@ -72,12 +72,12 @@
         (map first))))
 
 (deftest- attributes-test
-  (let [conn   (testing/local-temp-conn)
-        _      (d/transact conn {:tx-data [{:db/ident       :something
-                                            :db/valueType   :db.type/ref
-                                            :db/cardinality :db.cardinality/one}]})
-        as     (attributes (d/db conn))
-        idents (->> as (map #(:db/ident %)) (set))
+  (let [conn       (testing/local-temp-conn)
+        _          (d/transact conn {:tx-data [{:db/ident       :something
+                                                :db/valueType   :db.type/ref
+                                                :db/cardinality :db.cardinality/one}]})
+        as         (attributes (d/db conn))
+        idents     (->> as (map #(:db/ident %)) (set))
         succession (->> as (map #(:db/ident %)) (filter #{:something :db/valueType :db/ident}))]
     ; :db/ident and :db/valueType are in the same tx, :something is a later one
     ; (we want to sort by tx then by ident)
@@ -130,7 +130,7 @@
                                                           attributes)
                                      temp-binding-name  (fn [nesting-depth]
                                                           (symbol (str "?path" path-index "depth" nesting-depth)))
-                                     temp-bindings      (map temp-binding-name (range 1 (count checked-attributes)))
+                                     temp-bindings      (map temp-binding-name (range 0 (dec (count checked-attributes))))
                                      query-path         (-> (cons '?e temp-bindings)
                                                             (interleave checked-attributes)
                                                             (vec)
@@ -142,18 +142,37 @@
     (concat [:find '?e :where]
             (apply concat filter-rules))))
 
-(comment
-  (let [paths '([[:db/cardinality :x :y :db/id] "36"] [[:a :b :c] :d])]
-    (filter-query paths))
+(deftest- filter-query-test
+  (is (= (filter-query [[[:db/cardinality :x :y :db/id] 36]
+                        [[:a :b :c] :d]])
+         '[:find ?e
+           :where
+           [?path0depth1 :y 36]
+           [?path0depth0 :x ?path0depth1]
+           [?e :db/cardinality ?path0depth0]
+           [?path1depth1 :c :d]
+           [?path1depth0 :b ?path1depth1]
+           [?e :a ?path1depth0]]))
 
-  (let [paths '([[:db/cardinality #_:x #_:y :db/id] "36"] #_[[:a :b :c] :d])]
-    (filter-query paths))
+  (is (= (filter-query [[[:db/cardinality :db/id] 36]])
+         '[:find ?e :where [?e :db/cardinality 36]]))
 
-  (let [paths '([[:x :y :z :artist/name] "Led Zeppelin"])]
-    (filter-query paths))
+  (is (= (filter-query [[[:x :y :z :artist/name] "Led Zeppelin"]])
+         '[:find ?e
+           :where
+           [?path0depth2 :artist/name "Led Zeppelin"]
+           [?path0depth1 :z ?path0depth2]
+           [?path0depth0 :y ?path0depth1]
+           [?e :x ?path0depth0]]))
 
-  (filter-query '([[:track/_artists :track/name] "Moby Dick"]
-                  [[:track/_artists :track/name] "Ramble On"])))
+  (is (= (filter-query [[[:track/_artists :track/name] "Moby Dick"]
+                        [[:track/_artists :track/name] "Ramble On"]])
+         '[:find ?e
+           :where
+           [?path0depth0 :track/name "Moby Dick"]
+           [?path0depth0 :track/artists ?e]
+           [?path1depth0 :track/name "Ramble On"]
+           [?path1depth0 :track/artists ?e]])))
 
 (defn matches [db paths]
   (if-let [[_ value] (first (filter (fn [[[ffa]]] (= ffa :db/id)) paths))]
