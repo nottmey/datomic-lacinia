@@ -56,19 +56,32 @@
                db
                relevant-attribute-keys
                (set nss))
-          (d/q '[:find (pull ?e pattern)
+          (d/q '[:find (pull ?e pattern) ?tx
                  :in $ pattern
                  :where
                  [?e :db/valueType _]
-                 [?e :db/cardinality _]]
+                 [?e :db/cardinality _]
+                 [?e :db/ident _ ?tx]]
                db
                relevant-attribute-keys))
-        ;; TODO sort by tx -> collision prevention
+        (sort (fn [[a1 t1] [a2 t2]]
+                (let [by-tx (compare t1 t2)]
+                  (if (= by-tx 0)
+                    (compare (:db/ident a1) (:db/ident a2))
+                    by-tx))))
         (map first))))
 
 (deftest- attributes-test
-  (let [as     (attributes (d/db (testing/local-temp-conn)))
-        idents (->> as (map #(:db/ident %)) (set))]
+  (let [conn   (testing/local-temp-conn)
+        _      (d/transact conn {:tx-data [{:db/ident       :something
+                                            :db/valueType   :db.type/ref
+                                            :db/cardinality :db.cardinality/one}]})
+        as     (attributes (d/db conn))
+        idents (->> as (map #(:db/ident %)) (set))
+        succession (->> as (map #(:db/ident %)) (filter #{:something :db/valueType :db/ident}))]
+    ; :db/ident and :db/valueType are in the same tx, :something is a later one
+    ; (we want to sort by tx then by ident)
+    (is (= succession '(:db/ident :db/valueType :something)))
     (is (contains? idents :db/ident))
     (is (contains? idents :db.entity/attrs))
     (is (contains? idents :fressian/tag)))
