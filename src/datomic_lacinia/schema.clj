@@ -1,13 +1,13 @@
 (ns datomic-lacinia.schema
-  (:require [datomic-lacinia.utils :as utils]
-            [datomic-lacinia.types :as types]
+  (:require [clojure.string :as str]
+            [clojure.test :refer [deftest- is]]
             [datomic-lacinia.datomic :as datomic]
             [datomic-lacinia.graphql :as graphql]
             [datomic-lacinia.resolvers :as resolvers]
-            [clojure.test :refer [deftest- is]]
-            [clojure.string :as str]
-            [datomic.client.api :as d]
             [datomic-lacinia.testing :as testing]
+            [datomic-lacinia.types :as types]
+            [datomic-lacinia.utils :as utils]
+            [datomic.client.api :as d]
             [io.pedestal.log :as log]))
 
 (defn gen-value-field-config [attribute default-entity-type]

@@ -1,10 +1,10 @@
 (ns datomic-lacinia.resolvers
-  (:require [com.walmartlabs.lacinia.resolve :as resolve]
+  (:require [clojure.test :refer [deftest- is]]
+            [com.walmartlabs.lacinia.resolve :as resolve]
             [datomic-lacinia.datomic :as datomic]
-            [datomic-lacinia.utils :as utils]
-            [datomic-lacinia.types :as types]
-            [clojure.test :refer [deftest- is]]
             [datomic-lacinia.testing :as testing]
+            [datomic-lacinia.types :as types]
+            [datomic-lacinia.utils :as utils]
             [datomic.client.api :as d]))
 
 (defn value-field-resolver [attribute-ident attribute-type]

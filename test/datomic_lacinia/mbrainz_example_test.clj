@@ -1,11 +1,11 @@
 (ns datomic-lacinia.mbrainz-example-test
-  (:require [datomic-lacinia.schema :as schema]
-            [datomic-lacinia.datomic :as datomic]
-            [datomic-lacinia.testing :as testing]
-            [datomic.client.api :as d]
-            [com.walmartlabs.lacinia.schema :as ls]
+  (:require [clojure.data.json :as json]
             [clojure.test :refer [deftest is]]
-            [clojure.data.json :as json]))
+            [com.walmartlabs.lacinia.schema :as ls]
+            [datomic-lacinia.datomic :as datomic]
+            [datomic-lacinia.schema :as schema]
+            [datomic-lacinia.testing :as testing]
+            [datomic.client.api :as d]))
 
 ; Testing
 ; - schema generation

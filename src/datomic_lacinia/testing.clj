@@ -1,9 +1,9 @@
 (ns datomic-lacinia.testing
-  (:require [datomic.client.api :as d]
-            [com.walmartlabs.lacinia :as l]
-            [clojure.java.io :as io]
+  (:require [clojure.java.io :as io]
             [clojure.test :refer [deftest- is]]
-            [clojure.walk :as w]))
+            [clojure.walk :as w]
+            [com.walmartlabs.lacinia :as l]
+            [datomic.client.api :as d]))
 
 (defn local-temp-conn
   ([] (local-temp-conn "testing"))
