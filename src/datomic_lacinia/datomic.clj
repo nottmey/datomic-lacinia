@@ -1,8 +1,8 @@
 (ns datomic-lacinia.datomic
-  (:require [datomic.client.api :as d]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [clojure.test :refer [deftest- is]]
-            [datomic-lacinia.testing :as testing]))
+            [datomic-lacinia.testing :as testing]
+            [datomic.client.api :as d]))
 
 (defn back-ref [k]
   (keyword (namespace k) (str "_" (name k))))

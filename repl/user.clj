@@ -1,13 +1,13 @@
 (ns user
-  (:require [datomic-lacinia.testing :as testing]
-            [datomic-lacinia.datomic :as datomic]
-            [datomic-lacinia.schema :as schema]
-            [datomic-lacinia.mbrainz-example-test :as mbrainz]
-            [com.walmartlabs.lacinia.schema :as ls]
+  (:require [clojure.java.browse :refer [browse-url]]
             [com.walmartlabs.lacinia.pedestal2 :as lp]
-            [io.pedestal.http :as http]
-            [clojure.java.browse :refer [browse-url]]
-            [datomic.client.api :as d]))
+            [com.walmartlabs.lacinia.schema :as ls]
+            [datomic-lacinia.datomic :as datomic]
+            [datomic-lacinia.mbrainz-example-test :as mbrainz]
+            [datomic-lacinia.schema :as schema]
+            [datomic-lacinia.testing :as testing]
+            [datomic.client.api :as d]
+            [io.pedestal.http :as http]))
 
 (defonce server nil)
 

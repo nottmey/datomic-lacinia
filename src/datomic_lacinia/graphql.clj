@@ -1,7 +1,7 @@
 (ns datomic-lacinia.graphql
-  (:require [datomic-lacinia.utils :as utils]
-            [clojure.string :as str]
-            [clojure.test :refer [deftest- is]]))
+  (:require [clojure.string :as str]
+            [clojure.test :refer [deftest- is]]
+            [datomic-lacinia.utils :as utils]))
 
 (defn response-type [object field]
   (let [postfix     "Context"
