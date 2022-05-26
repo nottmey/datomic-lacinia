@@ -10,6 +10,12 @@
             [datomic.client.api :as d]
             [io.pedestal.log :as log]))
 
+(defn extend-aliases [attribute-aliases]
+  (merge attribute-aliases
+         (-> attribute-aliases
+             (utils/update-ks datomic/back-ref)
+             (utils/update-vs datomic/back-ref))))
+
 (defn gen-value-field-config [attribute entity-type]
   (let [attribute-ident       (:db/ident attribute)
         attribute-type        (:db/ident (:db/valueType attribute))
@@ -63,20 +69,20 @@
       (map graphql/context-field (str/split (namespace ident) #"\.")))
     [(graphql/value-field (if back-ref? (subs (name ident) 1) (name ident)))]))
 
-(defn gen-extended-attributes [attributes]
+(defn gen-extended-attributes [attributes attribute-aliases]
   (->> (concat datomic/default-attributes attributes)
        (reduce
-         (fn [distinct-as {:keys [db/ident] :as a}]
-           (let [unique-path (gen-path nil false ident)]
-             (if-let [path-present (get distinct-as unique-path)]
+         (fn [distinct-paths {:keys [db/ident] :as a}]
+           (let [path (gen-path nil false (get attribute-aliases ident ident))]
+             (if-let [path-present (get distinct-paths path)]
                (do
                  (log/warn :msg "attribute overshadowed!"
                            :hint "use an alias to make the overshadowed attribute visible"
                            :overshadowed ident
                            :already-present (:db/ident path-present)
-                           :fields-path (vec unique-path))
-                 distinct-as)
-               (assoc distinct-as unique-path a))))
+                           :fields-path (vec path))
+                 distinct-paths)
+               (assoc distinct-paths path a))))
          {})
        (vals)
        (mapcat
@@ -85,17 +91,19 @@
              [a (gen-back-ref-attribute a)]
              [a])))))
 
-(defn gen-attribute-paths [extended-attributes entity-type]
+(defn gen-attribute-paths [extended-attributes attribute-aliases entity-type]
   (->> extended-attributes
        (map (fn [{:keys [db/ident ::back-ref?]}]
-              [(gen-path entity-type back-ref? ident) ident]))))
+              (let [aliased-ident (get attribute-aliases ident ident)]
+                [(gen-path entity-type back-ref? aliased-ident)
+                 ident])))))
 
 (deftest- gen-attribute-paths-test
   (let [attribute {:db/ident       :track/artists
                    :db/valueType   {:db/ident :db.type/ref}
                    :db/cardinality {:db/ident :db.cardinality/many}}
-        extended  (gen-extended-attributes [attribute])
-        paths     (gen-attribute-paths extended :Entity)]
+        extended  (gen-extended-attributes [attribute] {})
+        paths     (gen-attribute-paths extended {} :Entity)]
     (is (= paths
            '([(:Entity :db_ :id) :db/id]
              [(:Entity :db_ :ident) :db/ident]
@@ -105,37 +113,49 @@
   (let [attribute {:db/ident       :0wie%rd.3n-amesp_ace2/arti%sts
                    :db/valueType   {:db/ident :db.type/ref}
                    :db/cardinality {:db/ident :db.cardinality/many}}
-        extended  (gen-extended-attributes [attribute])
-        paths     (gen-attribute-paths extended :Entity)]
+        extended  (gen-extended-attributes [attribute] {})
+        paths     (gen-attribute-paths extended {} :Entity)]
     (is (= paths
            '([(:Entity :db_ :id) :db/id]
              [(:Entity :db_ :ident) :db/ident]
              [(:Entity :wierd_ :nAmespAce2_ :artists) :0wie%rd.3n-amesp_ace2/arti%sts]
              [(:Entity :referencedBy_ :wierd_ :nAmespAce2_ :artists) :0wie%rd.3n-amesp_ace2/_arti%sts]))))
 
-  (let [attributes [{:db/ident       :track/%artists
-                     :db/valueType   {:db/ident :db.type/ref}
-                     :db/cardinality {:db/ident :db.cardinality/many}}
-                    {:db/ident       :track/artists
-                     :db/valueType   {:db/ident :db.type/ref}
-                     :db/cardinality {:db/ident :db.cardinality/many}}]
-        extended   (gen-extended-attributes attributes)
-        paths      (gen-attribute-paths extended :Entity)]
-    (is (= paths
+  (let [attributes             [{:db/ident       :track/%artists
+                                 :db/valueType   {:db/ident :db.type/ref}
+                                 :db/cardinality {:db/ident :db.cardinality/many}}
+                                {:db/ident       :track/artists
+                                 :db/valueType   {:db/ident :db.type/ref}
+                                 :db/cardinality {:db/ident :db.cardinality/many}}]
+        extended-without-alias (gen-extended-attributes attributes {})
+        paths-without-alias    (gen-attribute-paths extended-without-alias {} :Entity)
+        attribute-aliases      {:track/artists :track/redefined-artists}
+        extended-aliases       (extend-aliases attribute-aliases)
+        extended-with-alias    (gen-extended-attributes attributes extended-aliases)
+        paths-with-alias       (gen-attribute-paths extended-with-alias extended-aliases :Entity)]
+    (is (= paths-without-alias
            '([(:Entity :db_ :id) :db/id]
              [(:Entity :db_ :ident) :db/ident]
              [(:Entity :track_ :artists) :track/%artists]
-             [(:Entity :referencedBy_ :track_ :artists) :track/_%artists])))))
+             [(:Entity :referencedBy_ :track_ :artists) :track/_%artists])))
+    (is (= paths-with-alias
+           '([(:Entity :db_ :id) :db/id]
+             [(:Entity :db_ :ident) :db/ident]
+             [(:Entity :track_ :artists) :track/%artists]
+             [(:Entity :referencedBy_ :track_ :artists) :track/_%artists]
+             [(:Entity :track_ :redefinedArtists) :track/artists]
+             [(:Entity :referencedBy_ :track_ :redefinedArtists) :track/_artists])))))
 
 (defn gen-response-objects [attributes attribute-aliases entity-type]
-  (let [extended-attributes     (gen-extended-attributes attributes)
+  (let [extended-aliases        (extend-aliases attribute-aliases)
+        extended-attributes     (gen-extended-attributes attributes extended-aliases)
         extended-attributes-map (->> extended-attributes
                                      (map (fn [{:keys [db/ident] :as a}]
                                             (vector ident a)))
                                      (into {}))]
     (loop [response-objects {entity-type {:description "An entity of this application"}}
-           [current-path & remaining-paths] (gen-attribute-paths extended-attributes entity-type)]
-      (if-let [[[object field nested-field & more-fields] attribute-ident] current-path]
+           [current-path & remaining-paths] (gen-attribute-paths extended-attributes extended-aliases entity-type)]
+      (if-let [[[object field nested-field & more-fields] real-attribute-ident] current-path]
         (if nested-field
           (let [field-config    (gen-context-field-config object field)
                 field-type      (:type field-config)
@@ -145,8 +165,8 @@
                   (assoc-in [object :fields field] field-config)
                   (assoc-in [field-type :description] field-type-desc))
               (conj remaining-paths
-                    [(concat [field-type nested-field] more-fields) attribute-ident])))
-          (let [attribute    (get extended-attributes-map attribute-ident)
+                    [(concat [field-type nested-field] more-fields) real-attribute-ident])))
+          (let [attribute    (get extended-attributes-map real-attribute-ident)
                 field-config (gen-value-field-config attribute entity-type)]
             (recur
               (assoc-in response-objects [object :fields field] field-config)
@@ -241,7 +261,6 @@
         field->input-field       (fn [f] (update f :type ref-type->input-ref-type))]
     (-> (utils/update-ks response-objects graphql/input-type)
         (utils/update-vs #(update % :fields utils/update-vs field->input-field)))))
-
 
 ; TODO add time basis to requests
 ; TODO add database query to tracing (or own tracing mode for it)
