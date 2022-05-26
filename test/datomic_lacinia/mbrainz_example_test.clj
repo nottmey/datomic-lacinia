@@ -44,8 +44,8 @@
         data-tx (d/transact conn {:tx-data tx-data})
         id      (fn [temp-id] (str (get-in data-tx [:tempids temp-id])))
         as      (datomic/attributes (d/db conn) ["artist"])
-        s       (ls/compile (schema/gen-schema {:attributes as
-                                                :resolve-db #(d/db conn)}))]
+        s       (ls/compile (schema/gen-schema {:datomic/resolve-db #(d/db conn)
+                                                :datomic/attributes as}))]
 
     ; TODO test introspection
     ; TODO edge cases (expected data missing, id missing, etc.)

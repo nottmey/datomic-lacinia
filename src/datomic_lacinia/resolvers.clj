@@ -43,12 +43,12 @@
     (let [invalid-id (resolver nil {:id "1000"} nil)]
       (is (nil? invalid-id)))))
 
-(defn- db-paths-with-values [input-object response-objects default-entity-type]
+(defn- db-paths-with-values [input-object response-objects entity-type]
   (->>
     (utils/paths input-object)
     (map
       (fn [[ks v]]
-        (loop [graphql-context (get response-objects default-entity-type)
+        (loop [graphql-context (get response-objects entity-type)
                graphql-path    ks
                db-path         []
                db-value-type   nil]
@@ -90,9 +90,9 @@
     (is (= (db-paths-with-values input-object response-objects :Entity)
            (list [[:artist/name] artist-name] [[:track/_artists :track/name] song-name])))))
 
-(defn match-resolver [resolve-db response-objects entity-type-key]
+(defn match-resolver [resolve-db response-objects entity-type]
   (fn [_ {:keys [template]} _]
     (let [db       (resolve-db)
-          db-paths (db-paths-with-values template response-objects entity-type-key)
+          db-paths (db-paths-with-values template response-objects entity-type)
           results  (datomic/matches db db-paths)]
       (map #(resolve/with-context {} {:eid % :db db}) results))))

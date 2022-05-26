@@ -37,8 +37,8 @@ Possible use-case in the future: Allowing you to move your schema or database wh
 
 ; generate a schema with build-in resolvers
 (def lacinia-schema
-  (schema/gen-schema {:attributes attributes
-                      :resolve-db #(d/db conn)}))
+  (schema/gen-schema {:datomic/resolve-db #(d/db conn)
+                      :datomic/attributes attributes}))
 
 ; overwrite resolvers if you want
 
