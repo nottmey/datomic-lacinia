@@ -44,8 +44,8 @@
   (is (= (parse-db-value "hello" :db.type/string :_) "hello"))
   (is (= (parse-db-value :db.type/long :db.type/keyword :_) ":db.type/long")))
 
-(defn graphql-type [attribute-ident attribute-type attribute-cardinality entity-type]
-  (if (= attribute-ident :db/id)
+(defn graphql-type [is-id? attribute-type attribute-cardinality entity-type]
+  (if is-id?
     :ID
     (let [graphql-type (condp = attribute-type
                          :db.type/ref entity-type

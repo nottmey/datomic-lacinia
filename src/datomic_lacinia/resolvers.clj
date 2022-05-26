@@ -53,7 +53,7 @@
                db-path         []
                db-value-type   nil]
           (if-let [current-field (first graphql-path)]
-            (let [current-attribute   (get-in graphql-context [:fields current-field :db/attribute])
+            (let [current-attribute   (get-in graphql-context [:fields current-field :datomic/ident])
                   next-type           (get-in graphql-context [:fields current-field :type]) ; potentially '(list <type>)
                   next-type-unwrapped (if (list? next-type) (second next-type) next-type)]
               (recur
@@ -62,7 +62,7 @@
                 (if current-attribute
                   (conj db-path current-attribute)
                   db-path)
-                (get-in graphql-context [:fields current-field :db/type])))
+                (get-in graphql-context [:fields current-field :datomic/valueType])))
             [db-path
              (types/parse-graphql-value v db-value-type (last db-path))]))))))
 
@@ -74,19 +74,19 @@
         response-objects {:Entity                  {:fields {:artist       {:type :EntityArtist},
                                                              :track        {:type :EntityTrack},
                                                              :referencedBy {:type :EntityReferencedBy}}},
-                          :EntityArtist            {:fields {:name {:type         :String,
-                                                                    :db/attribute :artist/name,
-                                                                    :db/type      :db.type/string}}},
-                          :EntityTrack             {:fields {:name    {:type         :String,
-                                                                       :db/attribute :track/name,
-                                                                       :db/type      :db.type/string},
-                                                             :artists {:type         '(list :Entity),
-                                                                       :db/attribute :track/artists,
-                                                                       :db/type      :db.type/ref}}},
+                          :EntityArtist            {:fields {:name {:type              :String,
+                                                                    :datomic/ident     :artist/name,
+                                                                    :datomic/valueType :db.type/string}}},
+                          :EntityTrack             {:fields {:name    {:type              :String,
+                                                                       :datomic/ident     :track/name,
+                                                                       :datomic/valueType :db.type/string},
+                                                             :artists {:type              '(list :Entity),
+                                                                       :datomic/ident     :track/artists,
+                                                                       :datomic/valueType :db.type/ref}}},
                           :EntityReferencedBy      {:fields {:track {:type :EntityReferencedByTrack}}},
-                          :EntityReferencedByTrack {:fields {:artists {:type         '(list :Entity),
-                                                                       :db/attribute :track/_artists,
-                                                                       :db/type      :db.type/ref}}}}]
+                          :EntityReferencedByTrack {:fields {:artists {:type              '(list :Entity),
+                                                                       :datomic/ident     :track/_artists,
+                                                                       :datomic/valueType :db.type/ref}}}}]
     (is (= (db-paths-with-values input-object response-objects :Entity)
            (list [[:artist/name] artist-name] [[:track/_artists :track/name] song-name])))))
 
