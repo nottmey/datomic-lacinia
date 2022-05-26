@@ -10,7 +10,7 @@
             [datomic.client.api :as d]
             [io.pedestal.log :as log]))
 
-(defn gen-value-field-config [attribute default-entity-type]
+(defn gen-value-field-config [attribute entity-type]
   (let [attribute-ident       (:db/ident attribute)
         attribute-type        (:db/ident (:db/valueType attribute))
         attribute-cardinality (:db/ident (:db/cardinality attribute))
@@ -18,7 +18,7 @@
                                                attribute-ident
                                                attribute-type
                                                attribute-cardinality
-                                               default-entity-type)
+                                               entity-type)
                                :db/attribute attribute-ident
                                :db/type      attribute-type
                                :resolve      (resolvers/value-field-resolver
@@ -53,10 +53,10 @@
    :db/cardinality {:db/ident :db.cardinality/many}
    :db/doc         (str "Attribute for entities which are referenced via " ident " by another entity")})
 
-(defn gen-path [entity-type-key back-ref? ident]
+(defn gen-path [entity-type back-ref? ident]
   (concat
-    (when entity-type-key
-      [entity-type-key])
+    (when entity-type
+      [entity-type])
     (when back-ref?
       [(graphql/context-field :referencedBy)])
     (when (namespace ident)
@@ -85,21 +85,10 @@
              [a (gen-back-ref-attribute a)]
              [a])))))
 
-(defn gen-attribute-paths [extended-attributes entity-type-key]
+(defn gen-attribute-paths [extended-attributes entity-type]
   (->> extended-attributes
        (map (fn [{:keys [db/ident ::back-ref?]}]
-              [(gen-path entity-type-key back-ref? ident) ident]))))
-
-(comment
-  (let [attributes [{:db/ident       :track/%artists
-                     :db/valueType   {:db/ident :db.type/ref}
-                     :db/cardinality {:db/ident :db.cardinality/many}}
-                    {:db/ident       :track/artists
-                     :db/valueType   {:db/ident :db.type/ref}
-                     :db/cardinality {:db/ident :db.cardinality/many}}]
-        extended   (gen-extended-attributes attributes)
-        paths      (gen-attribute-paths extended :Entity)]
-    paths))
+              [(gen-path entity-type back-ref? ident) ident]))))
 
 (deftest- gen-attribute-paths-test
   (let [attribute {:db/ident       :track/artists
@@ -122,16 +111,30 @@
            '([(:Entity :db_ :id) :db/id]
              [(:Entity :db_ :ident) :db/ident]
              [(:Entity :wierd_ :nAmespAce2_ :artists) :0wie%rd.3n-amesp_ace2/arti%sts]
-             [(:Entity :referencedBy_ :wierd_ :nAmespAce2_ :artists) :0wie%rd.3n-amesp_ace2/_arti%sts])))))
+             [(:Entity :referencedBy_ :wierd_ :nAmespAce2_ :artists) :0wie%rd.3n-amesp_ace2/_arti%sts]))))
 
-(defn gen-response-objects [attributes entity-type-key]
+  (let [attributes [{:db/ident       :track/%artists
+                     :db/valueType   {:db/ident :db.type/ref}
+                     :db/cardinality {:db/ident :db.cardinality/many}}
+                    {:db/ident       :track/artists
+                     :db/valueType   {:db/ident :db.type/ref}
+                     :db/cardinality {:db/ident :db.cardinality/many}}]
+        extended   (gen-extended-attributes attributes)
+        paths      (gen-attribute-paths extended :Entity)]
+    (is (= paths
+           '([(:Entity :db_ :id) :db/id]
+             [(:Entity :db_ :ident) :db/ident]
+             [(:Entity :track_ :artists) :track/%artists]
+             [(:Entity :referencedBy_ :track_ :artists) :track/_%artists])))))
+
+(defn gen-response-objects [attributes entity-type]
   (let [extended-attributes     (gen-extended-attributes attributes)
         extended-attributes-map (->> extended-attributes
                                      (map (fn [{:keys [db/ident] :as a}]
                                             (vector ident a)))
                                      (into {}))]
-    (loop [response-objects {entity-type-key {:description "An entity of this application"}}
-           [current-path & remaining-paths] (gen-attribute-paths extended-attributes entity-type-key)]
+    (loop [response-objects {entity-type {:description "An entity of this application"}}
+           [current-path & remaining-paths] (gen-attribute-paths extended-attributes entity-type)]
       (if-let [[[object field nested-field & more-fields] attribute-ident] current-path]
         (if nested-field
           (let [field-config    (gen-context-field-config object field)
@@ -144,7 +147,7 @@
               (conj remaining-paths
                     [(concat [field-type nested-field] more-fields) attribute-ident])))
           (let [attribute    (get extended-attributes-map attribute-ident)
-                field-config (gen-value-field-config attribute entity-type-key)]
+                field-config (gen-value-field-config attribute entity-type)]
             (recur
               (assoc-in response-objects [object :fields field] field-config)
               remaining-paths)))
@@ -248,19 +251,25 @@
 ; TODO keep field intact when attribute renaming happens (old request don't break)
 ; TODO add security (query limiting, authorization, etc.)
 ; TODO add configuration options for schema features
-; TODO add configuration option for a map of attribute aliases
 
-(defn gen-schema [{:keys [resolve-db attributes entity-type-key] :or {entity-type-key :Entity}}]
-  (log/debug :msg "generating schema")
-  (let [response-objects (gen-response-objects attributes entity-type-key)]
+(defn gen-schema [{:keys [datomic/resolve-db
+                          datomic/attributes
+                          datomic/attribute-aliases
+                          lacinia/entity-type]
+                   :or   {attributes        []
+                          attribute-aliases {}
+                          entity-type       :Entity}
+                   :as   params}]
+  (log/debug :msg "generating schema" :params (dissoc params :datomic/resolve-db :datomic/attributes))
+  (let [response-objects (gen-response-objects attributes entity-type)]
     {:objects       response-objects
      :input-objects (gen-input-objects response-objects)
-     :queries       {:get   {:type        entity-type-key
+     :queries       {:get   {:type        entity-type
                              :description "Access any entity by its unique id, if it exists."
                              :args        {:id {:type :ID}}
                              :resolve     (resolvers/get-resolver resolve-db)}
-                     :match {:type        (list 'list entity-type-key)
+                     :match {:type        (list 'list entity-type)
                              :description "Access any entity by matching fields."
-                             :args        {:template {:type (graphql/input-type entity-type-key)}}
-                             :resolve     (resolvers/match-resolver resolve-db response-objects entity-type-key)}}}))
+                             :args        {:template {:type (graphql/input-type entity-type)}}
+                             :resolve     (resolvers/match-resolver resolve-db response-objects entity-type)}}}))
 
