@@ -9,13 +9,15 @@
             [datomic.client.api :as d]
             [io.pedestal.log :as log]))
 
-(defn value-field-resolver [attribute-ident attribute-type]
-  (fn [{:keys [db eid]} args value]
+(defn value-field-resolver [field attribute-ident attribute-type]
+  (fn [{:keys [db eid com.walmartlabs.lacinia/container-type-name]} args value]
     (log/trace :msg "resolve value"
-               :context {:eid eid}
+               :eid eid
+               :type container-type-name
+               :field field
+               :attribute [attribute-ident attribute-type]
                :args args
-               :value value
-               :bound [attribute-ident attribute-type])
+               :value value)
     (let [db-value      (datomic/value db eid attribute-ident)
           resolve-value #(if (map? %)
                            (resolve/with-context {} {:eid (:db/id %)})
@@ -25,10 +27,12 @@
         (map resolve-value db-value)
         (resolve-value db-value)))))
 
-(defn context-field-resolver []
-  (fn [{:keys [eid]} args value]
+(defn context-field-resolver [field]
+  (fn [{:keys [eid com.walmartlabs.lacinia/container-type-name]} args value]
     (log/trace :msg "resolve context"
-               :context {:eid eid}
+               :eid eid
+               :type container-type-name
+               :field field
                :args args
                :value value)
     {}))
@@ -114,3 +118,17 @@
           db-paths (db-paths-with-values template response-objects entity-type)
           results  (datomic/matches db db-paths)]
       (map #(resolve/with-context {} {:eid % :db db}) results))))
+
+
+(comment
+  ;; TODO parse selection-tree into pull query
+  {:Entity/db_
+   [{:selections {:DbContext/id    [nil],
+                  :DbContext/ident [nil]}}],
+
+   :Entity/artist_
+   [{:selections {:ArtistContext/name [nil],
+                  :ArtistContext/type
+                  [{:selections {:Entity/db_
+                                 [{:alias :type, :selections {:DbContext/ident
+                                                              [{:alias :name}]}}]}}]}}]})

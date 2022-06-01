@@ -16,7 +16,7 @@
              (utils/update-ks datomic/back-ref)
              (utils/update-vs datomic/back-ref))))
 
-(defn gen-value-field-config [attribute entity-type]
+(defn gen-value-field-config [field attribute entity-type]
   (let [attribute-ident       (:db/ident attribute)
         attribute-type        (:db/ident (:db/valueType attribute))
         attribute-cardinality (:db/ident (:db/cardinality attribute))
@@ -28,6 +28,7 @@
                                :datomic/ident     attribute-ident
                                :datomic/valueType attribute-type
                                :resolve           (resolvers/value-field-resolver
+                                                    field
                                                     attribute-ident
                                                     attribute-type)}]
     (if-let [description (:db/doc attribute)]
@@ -37,6 +38,7 @@
 (deftest- gen-value-field-config-test
   (let [db    (d/db (testing/local-temp-conn))
         field (gen-value-field-config
+                :ident
                 (->> (datomic/attributes db)
                      (filter #(= (:db/ident %) :db/ident))
                      (first))
@@ -50,7 +52,7 @@
 (defn gen-context-field-config [object field]
   {:type        (graphql/response-type object field)
    :description (str "Nested " (str/replace (name field) "_" "") " data")
-   :resolve     (resolvers/context-field-resolver)})
+   :resolve     (resolvers/context-field-resolver field)})
 
 (defn gen-back-ref-attribute [{:keys [db/ident]}]
   {::back-ref?     true
@@ -167,7 +169,7 @@
               (conj remaining-paths
                     [(concat [field-type nested-field] more-fields) real-attribute-ident])))
           (let [attribute    (get extended-attributes-map real-attribute-ident)
-                field-config (gen-value-field-config attribute entity-type)]
+                field-config (gen-value-field-config field attribute entity-type)]
             (recur
               (assoc-in response-objects [object :fields field] field-config)
               remaining-paths)))
