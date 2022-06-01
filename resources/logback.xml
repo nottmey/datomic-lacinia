@@ -1,11 +1,14 @@
 <configuration scan="true" scanPeriod="5 seconds">
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <encoder>
-            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+            <pattern>%d{HH:mm:ss.SSS} %msg - %logger{36}%n</pattern>
+            <!-- <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern> -->
         </encoder>
     </appender>
     <root level="INFO">
-        <appender-ref ref="STDOUT" />
+        <appender-ref ref="STDOUT"/>
     </root>
-    <logger name="datomic-lacinia.schema" level="TRACE" />
+    <logger name="datomic-lacinia.datomic" level="TRACE"/>
+    <logger name="datomic-lacinia.resolvers" level="TRACE"/>
+    <logger name="datomic-lacinia.schema" level="TRACE"/>
 </configuration>

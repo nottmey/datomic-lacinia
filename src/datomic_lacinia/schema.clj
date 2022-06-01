@@ -279,6 +279,8 @@
                           attribute-aliases {}
                           entity-type       :Entity}
                    :as   params}]
+  (when (nil? resolve-db)
+    (throw (IllegalArgumentException. (str "missing " :datomic/resolve-db))))
   (log/debug :msg "generating schema" :params (dissoc params :datomic/resolve-db :datomic/attributes))
   (let [response-objects (gen-response-objects attributes attribute-aliases entity-type)]
     {:objects       response-objects

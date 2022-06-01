@@ -6,7 +6,7 @@
 (defn parse-graphql-value [value db-attribute-type db-attribute-ident]
   (if (= db-attribute-ident :db/id)
     (Long/valueOf ^String value)
-    (condp = db-attribute-type
+    (case db-attribute-type
       ;; the following types don't have a direct counterpart
       :db.type/symbol value                                 ;; TODO data handling
       :db.type/keyword (edn/read-string value)
@@ -26,7 +26,7 @@
 (defn parse-db-value [value db-attribute-type db-attribute-ident]
   (if (= db-attribute-ident :db/id)
     (str value)
-    (condp = db-attribute-type
+    (case db-attribute-type
       ;; the following types don't have a direct counterpart
       :db.type/symbol value                                 ;; TODO data handling
       :db.type/keyword (if value (str value) value)         ;; TODO add option to just use keyword name (with reverse parsing)
@@ -47,7 +47,7 @@
 (defn graphql-type [is-id? attribute-type attribute-cardinality entity-type]
   (if is-id?
     :ID
-    (let [graphql-type (condp = attribute-type
+    (let [graphql-type (case attribute-type
                          :db.type/ref entity-type
                          :db.type/boolean :Boolean
                          :db.type/long :Int
@@ -64,6 +64,6 @@
                          :db.type/uri :String               ;; TODO data handling
                          ;; TODO tuples
                          :db.type/tuple :String)]
-      (condp = attribute-cardinality
+      (case attribute-cardinality
         :db.cardinality/one graphql-type
         :db.cardinality/many (list 'list graphql-type)))))

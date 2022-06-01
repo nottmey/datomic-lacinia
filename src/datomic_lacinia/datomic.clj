@@ -2,7 +2,8 @@
   (:require [clojure.string :as str]
             [clojure.test :refer [deftest- is]]
             [datomic-lacinia.testing :as testing]
-            [datomic.client.api :as d]))
+            [datomic.client.api :as d]
+            [io.pedestal.log :as log]))
 
 (defn back-ref [k]
   (keyword (namespace k) (str "_" (name k))))
@@ -112,6 +113,9 @@
     (is (not (id-exists? db [])))))
 
 (defn value [db eid attribute]
+  (log/trace :msg "read entity value"
+             :eid eid
+             :attribute attribute)
   (if (= attribute :db/id)
     eid
     (->
@@ -175,14 +179,11 @@
            [?path1depth0 :track/artists ?e]])))
 
 (defn matches [db paths]
+  (log/trace :msg "read matching value"
+             :paths paths)
   (if-let [[_ value] (first (filter (fn [[[ffa]]] (= ffa :db/id)) paths))]
     ;; TODO check id
     ;; TODO also apply filters (they still must match)
     [value]
-    (->> db
-         (d/q (filter-query paths))
+    (->> (d/q (filter-query paths) db)
          (map first))))
-
-(comment
-  (let [paths '([[:db/cardinality :db/id] "36"])]
-    (matches (current-db) paths)))

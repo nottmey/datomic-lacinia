@@ -25,8 +25,8 @@
             _               (d/transact conn {:tx-data tx-data})
             attributes      (->> (datomic/attributes (d/db conn))
                                  (filter #(contains? relevant-idents (:db/ident %))))
-            compile-schema  (fn [] (ls/compile (schema/gen-schema {:resolve-db #(d/db conn)
-                                                                   :attributes attributes})))
+            compile-schema  (fn [] (ls/compile (schema/gen-schema {:datomic/resolve-db #(d/db conn)
+                                                                   :datomic/attributes attributes})))
             server          (-> compile-schema
                                 (lp/default-service nil)
                                 http/create-server

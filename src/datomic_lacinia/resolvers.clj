@@ -1,14 +1,21 @@
 (ns datomic-lacinia.resolvers
   (:require [clojure.test :refer [deftest- is]]
+            [com.walmartlabs.lacinia.executor :as executor]
             [com.walmartlabs.lacinia.resolve :as resolve]
             [datomic-lacinia.datomic :as datomic]
             [datomic-lacinia.testing :as testing]
             [datomic-lacinia.types :as types]
             [datomic-lacinia.utils :as utils]
-            [datomic.client.api :as d]))
+            [datomic.client.api :as d]
+            [io.pedestal.log :as log]))
 
 (defn value-field-resolver [attribute-ident attribute-type]
-  (fn [{:keys [db eid]} _ _]
+  (fn [{:keys [db eid]} args value]
+    (log/trace :msg "resolve value"
+               :context {:eid eid}
+               :args args
+               :value value
+               :bound [attribute-ident attribute-type])
     (let [db-value      (datomic/value db eid attribute-ident)
           resolve-value #(if (map? %)
                            (resolve/with-context {} {:eid (:db/id %)})
@@ -19,12 +26,20 @@
         (resolve-value db-value)))))
 
 (defn context-field-resolver []
-  (fn [_ _ _] {}))
+  (fn [{:keys [eid]} args value]
+    (log/trace :msg "resolve context"
+               :context {:eid eid}
+               :args args
+               :value value)
+    {}))
 
 ; TODO generate resolvers for every other identity attribute (see https://docs.datomic.com/on-prem/schema/identity.html)
 
 (defn get-resolver [resolve-db]
-  (fn [_ {:keys [id]} _]
+  (fn [context {:keys [id]} _]
+    (log/debug :msg "get request"
+               :args {:id id}
+               :selections-tree (executor/selections-tree context))
     (let [eid (Long/valueOf ^String id)
           db  (resolve-db)]
       ; TODO optimize execution (goal: one round-trip, no more) -> benchmark!
@@ -91,7 +106,10 @@
            (list [[:artist/name] artist-name] [[:track/_artists :track/name] song-name])))))
 
 (defn match-resolver [resolve-db response-objects entity-type]
-  (fn [_ {:keys [template]} _]
+  (fn [context {:keys [template]} _]
+    (log/debug :msg "match request"
+               :args {:template template}
+               :selections-tree (executor/selections-tree context))
     (let [db       (resolve-db)
           db-paths (db-paths-with-values template response-objects entity-type)
           results  (datomic/matches db db-paths)]
