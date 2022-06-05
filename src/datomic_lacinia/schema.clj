@@ -46,8 +46,7 @@
     (is (= (get field :type) :String))
     (is (= (get field :datomic/ident) :db/ident))
     (is (= (get field :datomic/valueType) :db.type/keyword))
-    (is (= (get field :description) (:db/doc datomic/default-ident-attribute)))
-    (is (= ((get field :resolve) {:db db :eid 0} nil nil) ":db.part/db"))))
+    (is (= (get field :description) (:db/doc datomic/default-ident-attribute)))))
 
 (defn gen-context-field-config [object field]
   {:type        (graphql/response-type object field)
@@ -290,7 +289,7 @@
      :queries       {:get   {:type        entity-type
                              :description "Access any entity by its unique id, if it exists."
                              :args        {:id {:type :ID}}
-                             :resolve     (resolvers/get-resolver resolve-db)}
+                             :resolve     (resolvers/get-resolver resolve-db response-objects)}
                      :match {:type        (list 'list entity-type)
                              :description "Access any entity by matching fields."
                              :args        {:template {:type (graphql/input-type entity-type)}}

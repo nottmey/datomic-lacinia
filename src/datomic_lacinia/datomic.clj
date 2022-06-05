@@ -112,15 +112,19 @@
     (is (not (id-exists? db nil)))
     (is (not (id-exists? db [])))))
 
-(defn value [db eid attribute]
-  (log/trace :msg "read entity value"
+(defn entity [db eid pattern]
+  (log/trace :msg "db fetch entity"
              :eid eid
-             :attribute attribute)
-  (if (= attribute :db/id)
-    eid
-    (->
-      (d/pull db {:eid eid :selector [attribute]})
-      (get attribute))))
+             :pattern pattern)
+  (when (id-exists? db eid)
+    (d/pull db {:eid eid :selector pattern})))
+
+(deftest- entity-test
+  (let [db (d/db (testing/local-temp-conn))]
+    (is (= (entity db 0 '[:db/ident])
+           {:db/ident :db.part/db}))
+    (is (= (entity db 212341234 '[:db/id])
+           nil))))
 
 (defn filter-query [paths]
   (let [reverse-inverse-rule (fn [[e a v :as rule]]
@@ -143,13 +147,16 @@
                                       (map reverse-inverse-rule)
                                       (optimize-rules))))
         filter-rules         (map-indexed path->filter paths)]
-    (concat [:find '?e :where]
+    (concat [:find '(pull ?e pattern)
+             :in '$ 'pattern
+             :where]
             (apply concat filter-rules))))
 
 (deftest- filter-query-test
   (is (= (filter-query [[[:db/cardinality :x :y :db/id] 36]
                         [[:a :b :c] :d]])
-         '[:find ?e
+         '[:find (pull ?e pattern)
+           :in $ pattern
            :where
            [?path0depth1 :y 36]
            [?path0depth0 :x ?path0depth1]
@@ -159,10 +166,13 @@
            [?e :a ?path1depth0]]))
 
   (is (= (filter-query [[[:db/cardinality :db/id] 36]])
-         '[:find ?e :where [?e :db/cardinality 36]]))
+         '[:find (pull ?e pattern)
+           :in $ pattern
+           :where [?e :db/cardinality 36]]))
 
   (is (= (filter-query [[[:x :y :z :artist/name] "Led Zeppelin"]])
-         '[:find ?e
+         '[:find (pull ?e pattern)
+           :in $ pattern
            :where
            [?path0depth2 :artist/name "Led Zeppelin"]
            [?path0depth1 :z ?path0depth2]
@@ -171,19 +181,22 @@
 
   (is (= (filter-query [[[:track/_artists :track/name] "Moby Dick"]
                         [[:track/_artists :track/name] "Ramble On"]])
-         '[:find ?e
+         '[:find (pull ?e pattern)
+           :in $ pattern
            :where
            [?path0depth0 :track/name "Moby Dick"]
            [?path0depth0 :track/artists ?e]
            [?path1depth0 :track/name "Ramble On"]
            [?path1depth0 :track/artists ?e]])))
 
-(defn matches [db paths]
-  (log/trace :msg "read matching value"
-             :paths paths)
+(defn matches [db paths pattern]
   (if-let [[_ value] (first (filter (fn [[[ffa]]] (= ffa :db/id)) paths))]
     ;; TODO check id
     ;; TODO also apply filters (they still must match)
-    [value]
-    (->> (d/q (filter-query paths) db)
-         (map first))))
+    [(entity db value pattern)]
+    (do
+      (log/trace :msg "db fetch matching value"
+                 :paths paths
+                 :pattern pattern)
+      (->> (d/q (filter-query paths) db pattern)
+           (map first)))))

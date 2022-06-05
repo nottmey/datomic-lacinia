@@ -1,0 +1,10 @@
+query($id: ID!) {
+    match(template: {db_: {id: $id}}) {
+        db_ {
+            id
+        }
+        artist_ {
+            name
+        }
+    }
+}
