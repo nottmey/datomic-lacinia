@@ -65,7 +65,19 @@
       (testing file
         (let [r (testing/execute s file {:id (id "1")})]
           (is (= (get-in r [:data :match 0 :db_ :id]) (id "1")))
-          (is (= (get-in r [:data :match 0 :artist_ :name]) "Led Zeppelin")))))
+          (is (= (get-in r [:data :match 0 :artist_ :name]) "Led Zeppelin")))
+        (let [r (testing/execute s file {:id 123123})]
+          (is (= (get-in r [:data :match]) [])))))
+
+    (let [file "mbrainz/match-artist-by-id-and-name.graphql"]
+      (testing file
+        (let [r (testing/execute s file {:id (id "1") :name "Led Zeppelin"})]
+          (is (= (get-in r [:data :match 0 :db_ :id]) (id "1")))
+          (is (= (get-in r [:data :match 0 :artist_ :name]) "Led Zeppelin")))
+        (let [r (testing/execute s file {:id 123123 :name "Led Zeppelin"})]
+          (is (= (get-in r [:data :match]) [])))
+        (let [r (testing/execute s file {:id (id "1") :name "LedZeppelin"})]
+          (is (= (get-in r [:data :match]) [])))))
 
     (let [file "mbrainz/query-john-lennon.graphql"]
       (testing file

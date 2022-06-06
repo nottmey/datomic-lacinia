@@ -131,9 +131,9 @@
                                (if (str/starts-with? (name a) "_")
                                  (list v (keyword (namespace a) (subs (name a) 1)) e)
                                  rule))
-        optimize-rules       (fn [rules] (reverse rules))   ; better query ordering
         path->filter         (fn [path-index [attributes value]]
                                (let [checked-attributes (if (= (last attributes) :db/id)
+                                                          ; :db/id not a valid filter, using id as value suffices
                                                           (drop-last attributes)
                                                           attributes)
                                      temp-binding-name  (fn [nesting-depth]
@@ -142,15 +142,25 @@
                                      query-path         (-> (cons '?e temp-bindings)
                                                             (interleave checked-attributes)
                                                             (vec)
-                                                            (conj value))]
-                                 (->> (partition 3 2 query-path)
-                                      (map reverse-inverse-rule)
-                                      (optimize-rules))))
+                                                            (conj value))
+                                     filters            (->> (partition 3 2 query-path)
+                                                             (map reverse-inverse-rule)
+                                                             ; reversing order for faster query execution
+                                                             (reverse))]
+                                 (if (= attributes [:db/id])
+                                   ; edge case: :db/id on root level needs a direct check, :db/id not a valid filter
+                                   (cons
+                                     (list (list '= '?e value))
+                                     filters)
+                                   filters)))
         filter-rules         (map-indexed path->filter paths)]
     (concat [:find '(pull ?e pattern)
              :in '$ 'pattern
              :where]
             (apply concat filter-rules))))
+
+(comment
+  (filter-query '([[:db/id] 92358976733259])))
 
 (deftest- filter-query-test
   (is (= (filter-query [[[:db/cardinality :x :y :db/id] 36]
@@ -187,16 +197,27 @@
            [?path0depth0 :track/name "Moby Dick"]
            [?path0depth0 :track/artists ?e]
            [?path1depth0 :track/name "Ramble On"]
-           [?path1depth0 :track/artists ?e]])))
+           [?path1depth0 :track/artists ?e]]))
+
+  (is (= (filter-query '([[:db/id] 92358976733259]
+                         [[:artist/name] "Led Zeppelin"]))
+         '[:find (pull ?e pattern)
+           :in $ pattern
+           :where
+           [(= ?e 92358976733259)]
+           [?e :artist/name "Led Zeppelin"]])))
 
 (defn matches [db paths pattern]
-  (if-let [[_ value] (first (filter (fn [[[ffa]]] (= ffa :db/id)) paths))]
-    ;; TODO check id
-    ;; TODO also apply filters (they still must match)
-    [(entity db value pattern)]
-    (do
+  (if-let [eid (and (= (count paths) 1)
+                    (= (ffirst paths) [:db/id])
+                    (second (first paths)))]
+    ; edge case: just checking for :db/id would cause unbound variable in query
+    (->> [(entity db eid pattern)]
+         (filter some?))
+    (let [query (filter-query paths)]
       (log/trace :msg "db fetch matching value"
                  :paths paths
+                 :query query
                  :pattern pattern)
-      (->> (d/q (filter-query paths) db pattern)
+      (->> (d/q query db pattern)
            (map first)))))
