@@ -254,6 +254,36 @@
                                                                    :datomic/valueType :db.type/string
                                                                    :type              :String}}}}))))
 
+(defn gen-selection-fields [response-objects]
+  (->> response-objects
+       (mapcat (fn [[type {:keys [fields]}]]
+                 (let [type-name (name type)]
+                   (->> fields
+                        (map (fn [[field {:keys [datomic/ident]}]]
+                               (vector (keyword type-name (name field)) ident)))))))
+       (into {})))
+
+(deftest- gen-selection-fields-test
+  (let [response-objects '{:Entity                    {:fields {:db_           {},
+                                                                :artist_       {},
+                                                                :referencedBy_ {}}},
+                           :DbContext                 {:fields {:id    {:datomic/ident :db/id},
+                                                                :ident {:datomic/ident :db/ident}}},
+                           :ArtistContext             {:fields {:name {:datomic/ident :artist/name},
+                                                                :type {:datomic/ident :artist/type}}},
+                           :ReferencedByContext       {:fields {:artist_ {}}},
+                           :ReferencedByArtistContext {:fields {:type {:datomic/ident :artist/_type}}}}]
+    (is (= (gen-selection-fields response-objects)
+           {:ReferencedByContext/artist_    nil,
+            :ArtistContext/name             :artist/name,
+            :DbContext/id                   :db/id,
+            :ArtistContext/type             :artist/type,
+            :DbContext/ident                :db/ident,
+            :ReferencedByArtistContext/type :artist/_type,
+            :Entity/db_                     nil,
+            :Entity/referencedBy_           nil,
+            :Entity/artist_                 nil}))))
+
 (defn gen-input-objects [response-objects]
   (let [ref->input-ref           (fn [k] (if (get response-objects k) (graphql/input-type k) k))
         ref-type->input-ref-type (fn [t] (if (seq? t)
@@ -283,15 +313,22 @@
   (when (nil? resolve-db)
     (throw (IllegalArgumentException. (str "missing " :datomic/resolve-db))))
   (log/debug :msg "generating schema" :params (dissoc params :datomic/resolve-db :datomic/attributes))
-  (let [response-objects (gen-response-objects attributes attribute-aliases entity-type)]
+  (let [response-objects      (gen-response-objects attributes attribute-aliases entity-type)
+        selection-field->attr (gen-selection-fields response-objects)]
     {:objects       response-objects
      :input-objects (gen-input-objects response-objects)
      :queries       {:get   {:type        entity-type
                              :description "Access any entity by its unique id, if it exists."
                              :args        {:id {:type :ID}}
-                             :resolve     (resolvers/get-resolver resolve-db response-objects)}
+                             :resolve     (resolvers/get-resolver
+                                            resolve-db
+                                            selection-field->attr)}
                      :match {:type        (list 'list entity-type)
                              :description "Access any entity by matching fields."
                              :args        {:template {:type (graphql/input-type entity-type)}}
-                             :resolve     (resolvers/match-resolver resolve-db response-objects entity-type)}}}))
+                             :resolve     (resolvers/match-resolver
+                                            resolve-db
+                                            response-objects
+                                            selection-field->attr
+                                            entity-type)}}}))
 

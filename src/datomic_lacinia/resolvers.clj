@@ -32,15 +32,6 @@
 
 ; TODO generate resolvers for every other identity attribute (see https://docs.datomic.com/on-prem/schema/identity.html)
 
-(defn selection-field-to-attr-map [response-objects]
-  (->> response-objects
-       (mapcat (fn [[type {:keys [fields]}]]
-                 (let [type-name (name type)]
-                   (->> fields
-                        (map (fn [[field {:keys [datomic/ident]}]]
-                               (vector (keyword type-name (name field)) ident)))))))
-       (into {})))
-
 (defn pull-pattern [selection-tree selection-field->attr]
   (w/postwalk
     (fn [v]
@@ -64,40 +55,48 @@
     [{:selections selection-tree}]))
 
 (deftest- pull-pattern-test
-  (let [selection-tree   {:Entity/db_
-                          [{:selections {:DbContext/id    [nil],
-                                         :DbContext/ident [nil]}}],
-                          :Entity/artist_
-                          [{:selections {:ArtistContext/name [nil],
-                                         :ArtistContext/type
-                                         [{:selections {:Entity/db_
-                                                        [{:alias :type, :selections {:DbContext/ident [nil]}}]}}
-                                          {:alias      :another
-                                           :selections {:Entity/db_
-                                                        [{:alias :type, :selections {:DbContext/ident
-                                                                                     [{:alias :name}
-                                                                                      {:alias :other}]}}]}}]}}]}
-        response-objects '{:Entity                    {:fields {:db_           {},
-                                                                :artist_       {},
-                                                                :referencedBy_ {}}},
-                           :DbContext                 {:fields {:id    {:datomic/ident :db/id},
-                                                                :ident {:datomic/ident :db/ident}}},
-                           :ArtistContext             {:fields {:name {:datomic/ident :artist/name},
-                                                                :type {:datomic/ident :artist/type}}},
-                           :ReferencedByContext       {:fields {:artist_ {}}},
-                           :ReferencedByArtistContext {:fields {:type {:datomic/ident :artist/_type}}}}]
-    (is (= (pull-pattern selection-tree (selection-field-to-attr-map response-objects))
+  (let [selection-tree        {:Entity/db_
+                               [{:selections {:DbContext/id    [nil],
+                                              :DbContext/ident [nil]}}],
+                               :Entity/artist_
+                               [{:selections {:ArtistContext/name [nil],
+                                              :ArtistContext/type
+                                              [{:selections {:Entity/db_
+                                                             [{:alias :type, :selections {:DbContext/ident [nil]}}]}}
+                                               {:alias      :another
+                                                :selections {:Entity/db_
+                                                             [{:alias :type, :selections {:DbContext/ident
+                                                                                          [{:alias :name}
+                                                                                           {:alias :other}]}}]}}]}}]}
+        response-objects      '{:Entity                    {:fields {:db_           {},
+                                                                     :artist_       {},
+                                                                     :referencedBy_ {}}},
+                                :DbContext                 {:fields {:id    {:datomic/ident :db/id},
+                                                                     :ident {:datomic/ident :db/ident}}},
+                                :ArtistContext             {:fields {:name {:datomic/ident :artist/name},
+                                                                     :type {:datomic/ident :artist/type}}},
+                                :ReferencedByContext       {:fields {:artist_ {}}},
+                                :ReferencedByArtistContext {:fields {:type {:datomic/ident :artist/_type}}}}
+        selection-field->attr {:ReferencedByContext/artist_    nil,
+                               :ArtistContext/name             :artist/name,
+                               :DbContext/id                   :db/id,
+                               :ArtistContext/type             :artist/type,
+                               :DbContext/ident                :db/ident,
+                               :ReferencedByArtistContext/type :artist/_type,
+                               :Entity/db_                     nil,
+                               :Entity/referencedBy_           nil,
+                               :Entity/artist_                 nil}]
+    (is (= (pull-pattern selection-tree selection-field->attr)
            [:db/id :db/ident :artist/name {:artist/type [:db/ident]}]))))
 
-(defn get-resolver [resolve-db response-objects]
-  (let [selection-field->attr (selection-field-to-attr-map response-objects)]
-    (fn [context {:keys [id] :as args} _]
-      (log/debug :msg "get request"
-                 :args args)
-      (let [eid     (Long/valueOf ^String id)
-            db      (resolve-db)
-            pattern (pull-pattern (executor/selections-tree context) selection-field->attr)]
-        (datomic/entity db eid pattern)))))
+(defn get-resolver [resolve-db selection-field->attr]
+  (fn [context {:keys [id] :as args} _]
+    (log/debug :msg "get request"
+               :args args)
+    (let [eid     (Long/valueOf ^String id)
+          db      (resolve-db)
+          pattern (pull-pattern (executor/selections-tree context) selection-field->attr)]
+      (datomic/entity db eid pattern))))
 
 (defn- db-paths-with-values [input-object response-objects entity-type]
   (->>
@@ -146,13 +145,12 @@
     (is (= (db-paths-with-values input-object response-objects :Entity)
            (list [[:artist/name] artist-name] [[:track/_artists :track/name] song-name])))))
 
-(defn match-resolver [resolve-db response-objects entity-type]
-  (let [selection-field->attr (selection-field-to-attr-map response-objects)]
-    (fn [context {:keys [template] :as args} _]
-      (log/debug :msg "match request"
-                 :args args)
-      (let [db       (resolve-db)
-            db-paths (db-paths-with-values template response-objects entity-type)
-            pattern  (pull-pattern (executor/selections-tree context) selection-field->attr)
-            results  (datomic/matches db db-paths pattern)]
-        results))))
+(defn match-resolver [resolve-db response-objects selection-field->attr entity-type]
+  (fn [context {:keys [template] :as args} _]
+    (log/debug :msg "match request"
+               :args args)
+    (let [db       (resolve-db)
+          db-paths (db-paths-with-values template response-objects entity-type)
+          pattern  (pull-pattern (executor/selections-tree context) selection-field->attr)
+          results  (datomic/matches db db-paths pattern)]
+      results)))
