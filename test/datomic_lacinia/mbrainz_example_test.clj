@@ -52,7 +52,7 @@
     ; TODO test introspection
     ; TODO edge cases (expected data missing, id missing, etc.)
 
-    (let [file "mbrainz/query-artist-by-id.graphql"]
+    (let [file "mbrainz/get-artist-by-id.graphql"]
       (testing file
         (let [r (testing/execute s file {:id (id "1")})]
           (println "Example 1:")
@@ -79,7 +79,7 @@
         (let [r (testing/execute s file {:id (id "1") :name "LedZeppelin"})]
           (is (= (get-in r [:data :match]) [])))))
 
-    (let [file "mbrainz/query-john-lennon.graphql"]
+    (let [file "mbrainz/match-john-lennon.graphql"]
       (testing file
         (let [r (testing/execute s file nil)]
           (println "Example 2:")
@@ -89,7 +89,7 @@
           (is (= (get-in r [:data :match 0 :artist_ :name]) "John Lennon"))
           (is (= (get-in r [:data :match 0 :artist_ :type :db_ :ident]) ":artist.type/person")))))
 
-    (let [file "mbrainz/query-group-artists.graphql"]
+    (let [file "mbrainz/match-group-artists.graphql"]
       (testing file
         (let [r (testing/execute s file nil)]
           (is (= (count (get-in r [:data :match])) 2))
