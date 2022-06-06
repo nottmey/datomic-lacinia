@@ -21,7 +21,7 @@
         attribute-type        (:db/ident (:db/valueType attribute))
         attribute-cardinality (:db/ident (:db/cardinality attribute))
         type-config           {:type              (types/graphql-type
-                                                    (= attribute-ident :db/id)
+                                                    attribute-ident
                                                     attribute-type
                                                     attribute-cardinality
                                                     entity-type)
