@@ -296,7 +296,6 @@
 ; TODO add time basis to requests
 ; TODO add database query to tracing (or own tracing mode for it)
 ; TODO add 'what else is available field to entity, etc?'
-; TODO use https://github.com/vlaaad/plusinia for optimization
 ; TODO try out https://github.com/Datomic/ion-starter
 ; TODO keep field intact when attribute renaming happens (old request don't break)
 ; TODO add security (query limiting, authorization, etc.)
