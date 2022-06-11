@@ -54,6 +54,25 @@
         r))
     [{:selections selection-tree}]))
 
+(comment
+  (let [selection-tree        {:Entity/db_ [{:selections {:DbContext/_rest [nil]}}]}
+        selection-field->attr {:ReferencedByContext/artist_     nil,
+                               :ReferencedByContext/_rest       nil,
+                               :ReferencedByArtistContext/type  :artist/_type,
+                               :ReferencedByArtistContext/_rest nil
+                               :ArtistContext/name              :artist/name,
+                               :ArtistContext/type              :artist/type,
+                               :ArtistContext/_rest             nil
+                               :DbContext/id                    :db/id,
+                               :DbContext/ident                 :db/ident,
+                               :DbContext/_rest                 nil,
+                               :Entity/db_                      nil,
+                               :Entity/referencedBy_            nil,
+                               :Entity/artist_                  nil
+                               :Entity/_rest                    nil}]
+    (is (= (pull-pattern selection-tree selection-field->attr)
+           [:db/id :db/ident :artist/name {:artist/type [:db/ident]}]))))
+
 (deftest- pull-pattern-test
   (let [selection-tree        {:Entity/db_
                                [{:selections {:DbContext/id    [nil],
@@ -68,15 +87,6 @@
                                                              [{:alias :type, :selections {:DbContext/ident
                                                                                           [{:alias :name}
                                                                                            {:alias :other}]}}]}}]}}]}
-        response-objects      '{:Entity                    {:fields {:db_           {},
-                                                                     :artist_       {},
-                                                                     :referencedBy_ {}}},
-                                :DbContext                 {:fields {:id    {:datomic/ident :db/id},
-                                                                     :ident {:datomic/ident :db/ident}}},
-                                :ArtistContext             {:fields {:name {:datomic/ident :artist/name},
-                                                                     :type {:datomic/ident :artist/type}}},
-                                :ReferencedByContext       {:fields {:artist_ {}}},
-                                :ReferencedByArtistContext {:fields {:type {:datomic/ident :artist/_type}}}}
         selection-field->attr {:ReferencedByContext/artist_    nil,
                                :ArtistContext/name             :artist/name,
                                :DbContext/id                   :db/id,
@@ -95,8 +105,11 @@
                :args args)
     (let [eid     (Long/valueOf ^String id)
           db      (resolve-db)
-          pattern (pull-pattern (executor/selections-tree context) selection-field->attr)]
-      (datomic/entity db eid pattern))))
+          pattern (pull-pattern
+                    (executor/selections-tree context)
+                    selection-field->attr)
+          result  (datomic/entity db eid pattern)]
+      result)))
 
 (defn- db-paths-with-values [input-object response-objects entity-type]
   (->>
@@ -145,12 +158,17 @@
     (is (= (db-paths-with-values input-object response-objects :Entity)
            (list [[:artist/name] artist-name] [[:track/_artists :track/name] song-name])))))
 
-(defn match-resolver [resolve-db response-objects selection-field->attr entity-type]
+(defn match-resolver [resolve-db
+                      response-objects
+                      selection-field->attr
+                      entity-type]
   (fn [context {:keys [template] :as args} _]
     (log/debug :msg "match request"
                :args args)
     (let [db       (resolve-db)
           db-paths (db-paths-with-values template response-objects entity-type)
-          pattern  (pull-pattern (executor/selections-tree context) selection-field->attr)
+          pattern  (pull-pattern
+                     (executor/selections-tree context)
+                     selection-field->attr)
           results  (datomic/matches db db-paths pattern)]
       results)))

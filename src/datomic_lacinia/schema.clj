@@ -10,7 +10,7 @@
             [datomic.client.api :as d]
             [io.pedestal.log :as log]))
 
-(defn extend-aliases [attribute-aliases]
+(defn gen-extended-aliases [attribute-aliases]
   (merge attribute-aliases
          (-> attribute-aliases
              (utils/update-ks datomic/back-ref)
@@ -53,6 +53,18 @@
    :description (str "Nested " (str/replace (name field) "_" "") " data")
    :resolve     (resolvers/context-field-resolver field)})
 
+(def filled-fields-field-config
+  {:type        (list 'list :String)
+   :description "Allows to explore which fields also hold values within the respective selection level"
+   :resolve     (fn [context args value]
+                  ;; TODO
+                  (println "Hello from _rest field"))})
+
+(defn base-type-config [desc filled-fields-field]
+  (cond->
+    {:description desc}
+    filled-fields-field (assoc :fields {filled-fields-field filled-fields-field-config})))
+
 (defn gen-back-ref-attribute [{:keys [db/ident]}]
   {::back-ref?     true
    :db/ident       (datomic/back-ref ident),
@@ -92,8 +104,8 @@
              [a (gen-back-ref-attribute a)]
              [a])))))
 
-(defn gen-attribute-paths [extended-attributes attribute-aliases entity-type]
-  (->> extended-attributes
+(defn gen-attribute-paths [attributes attribute-aliases entity-type]
+  (->> attributes
        (map (fn [{:keys [db/ident ::back-ref?]}]
               (let [aliased-ident (get attribute-aliases ident ident)]
                 [(gen-path entity-type back-ref? aliased-ident)
@@ -131,7 +143,7 @@
         extended-without-alias (gen-extended-attributes attributes {})
         paths-without-alias    (gen-attribute-paths extended-without-alias {} :Entity)
         attribute-aliases      {:track/artists :track/redefined-artists}
-        extended-aliases       (extend-aliases attribute-aliases)
+        extended-aliases       (gen-extended-aliases attribute-aliases)
         extended-with-alias    (gen-extended-attributes attributes extended-aliases)
         paths-with-alias       (gen-attribute-paths extended-with-alias extended-aliases :Entity)]
     (is (= paths-without-alias
@@ -147,15 +159,13 @@
              [(:Entity :track_ :redefinedArtists) :track/artists]
              [(:Entity :referencedBy_ :track_ :redefinedArtists) :track/_artists])))))
 
-(defn gen-response-objects [attributes attribute-aliases entity-type]
-  (let [extended-aliases        (extend-aliases attribute-aliases)
-        extended-attributes     (gen-extended-attributes attributes extended-aliases)
-        extended-attributes-map (->> extended-attributes
-                                     (map (fn [{:keys [db/ident] :as a}]
-                                            (vector ident a)))
-                                     (into {}))]
+(defn gen-response-objects [attributes attribute-aliases entity-type filled-fields-field]
+  (let [attributes-map (->> attributes
+                            (map (fn [{:keys [db/ident] :as a}]
+                                   (vector ident a)))
+                            (into {}))]
     (loop [response-objects {entity-type {:description "An entity of this application"}}
-           [current-path & remaining-paths] (gen-attribute-paths extended-attributes extended-aliases entity-type)]
+           [current-path & remaining-paths] (gen-attribute-paths attributes attribute-aliases entity-type)]
       (if-let [[[object field nested-field & more-fields] real-attribute-ident] current-path]
         (if nested-field
           (let [field-config    (gen-context-field-config object field)
@@ -167,7 +177,7 @@
                   (assoc-in [field-type :description] field-type-desc))
               (conj remaining-paths
                     [(concat [field-type nested-field] more-fields) real-attribute-ident])))
-          (let [attribute    (get extended-attributes-map real-attribute-ident)
+          (let [attribute    (get attributes-map real-attribute-ident)
                 field-config (gen-value-field-config field attribute entity-type)]
             (recur
               (assoc-in response-objects [object :fields field] field-config)
@@ -175,7 +185,9 @@
         response-objects))))
 
 (deftest- gen-response-objects-test
-  (let [objects (gen-response-objects [] {} :Entity)]
+  (let [extended-aliases    (gen-extended-aliases {})
+        extended-attributes (gen-extended-attributes [] extended-aliases)
+        objects             (gen-response-objects extended-attributes extended-aliases :Entity nil)]
     (is (= (testing/clean objects [:resolve])
            {:DbContext {:description "Nested data of field 'db' on type 'Entity'"
                         :fields      {:id    {:datomic/ident     :db/id
@@ -191,21 +203,23 @@
                                             :type        :DbContext}}}})))
 
   ;; checking for backref
-  (let [schema-with-refs [#:db{:ident       :artist/name,
-                               :valueType   #:db{:ident :db.type/string},
-                               :cardinality #:db{:ident :db.cardinality/one}}
-                          #:db{:ident       :track/name,
-                               :valueType   #:db{:ident :db.type/string},
-                               :cardinality #:db{:ident :db.cardinality/one}}
-                          #:db{:ident       :track/artists,
-                               :valueType   #:db{:ident :db.type/ref},
-                               :cardinality #:db{:ident :db.cardinality/many},
-                               :doc         "Artists who contributed to the track"}
-                          #:db{:ident       :track/influencers
-                               :valueType   #:db{:ident :db.type/ref}
-                               :cardinality #:db{:ident :db.cardinality/many}
-                               :doc         "Artists who had influences on the style of this track"}]
-        objects          (gen-response-objects schema-with-refs {} :Entity)]
+  (let [schema-with-refs    [#:db{:ident       :artist/name,
+                                  :valueType   #:db{:ident :db.type/string},
+                                  :cardinality #:db{:ident :db.cardinality/one}}
+                             #:db{:ident       :track/name,
+                                  :valueType   #:db{:ident :db.type/string},
+                                  :cardinality #:db{:ident :db.cardinality/one}}
+                             #:db{:ident       :track/artists,
+                                  :valueType   #:db{:ident :db.type/ref},
+                                  :cardinality #:db{:ident :db.cardinality/many},
+                                  :doc         "Artists who contributed to the track"}
+                             #:db{:ident       :track/influencers
+                                  :valueType   #:db{:ident :db.type/ref}
+                                  :cardinality #:db{:ident :db.cardinality/many}
+                                  :doc         "Artists who had influences on the style of this track"}]
+        extended-aliases    (gen-extended-aliases {})
+        extended-attributes (gen-extended-attributes schema-with-refs extended-aliases)
+        objects             (gen-response-objects extended-attributes extended-aliases :Entity nil)]
     (is (= (testing/clean objects [:resolve])
            {:ArtistContext            {:description "Nested data of field 'artist' on type 'Entity'"
                                        :fields      {:name {:datomic/ident     :artist/name
@@ -304,15 +318,19 @@
 (defn gen-schema [{:keys [datomic/resolve-db
                           datomic/attributes
                           datomic/attribute-aliases
-                          lacinia/entity-type]
-                   :or   {attributes        []
-                          attribute-aliases {}
-                          entity-type       :Entity}
+                          lacinia/entity-type
+                          lacinia/filled-fields-field]
+                   :or   {attributes          []
+                          attribute-aliases   {}
+                          entity-type         :Entity
+                          filled-fields-field :_fields}     ; TODO add option to disable
                    :as   params}]
   (when (nil? resolve-db)
     (throw (IllegalArgumentException. (str "missing " :datomic/resolve-db))))
   (log/debug :msg "generating schema" :params (dissoc params :datomic/resolve-db :datomic/attributes))
-  (let [response-objects      (gen-response-objects attributes attribute-aliases entity-type)
+  (let [extended-aliases      (gen-extended-aliases attribute-aliases)
+        extended-attributes   (gen-extended-attributes attributes extended-aliases)
+        response-objects      (gen-response-objects extended-attributes extended-aliases entity-type filled-fields-field)
         selection-field->attr (gen-selection-fields response-objects)]
     {:objects       response-objects
      :input-objects (gen-input-objects response-objects)
