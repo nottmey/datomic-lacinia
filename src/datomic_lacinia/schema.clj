@@ -186,20 +186,24 @@
 (deftest- gen-response-objects-test
   (let [extended-aliases    (gen-extended-aliases {})
         extended-attributes (gen-extended-attributes [] extended-aliases)
-        objects             (gen-response-objects extended-attributes extended-aliases :Entity nil)]
+        objects             (gen-response-objects extended-attributes extended-aliases :Entity :_fields)]
     (is (= (testing/clean objects [:resolve])
-           {:DbContext {:description "Nested data of field 'db' on type 'Entity'"
-                        :fields      {:id    {:datomic/ident     :db/id
-                                              :datomic/valueType :db.type/long
-                                              :description       "Attribute used to uniquely identify an entity, managed by Datomic."
-                                              :type              :ID}
-                                      :ident {:datomic/ident     :db/ident
-                                              :datomic/valueType :db.type/keyword
-                                              :description       "Attribute used to uniquely name an entity."
-                                              :type              :String}}}
-            :Entity    {:description "An entity of this application"
-                        :fields      {:db_ {:description "Nested db data"
-                                            :type        :DbContext}}}})))
+           {:Entity    {:description "An entity of this application"
+                        :fields      {:_fields {:description "Allows to explore which fields also hold values within the respective selection level"
+                                                :type        '(list :String)}
+                                      :db_     {:description "Nested db data"
+                                                :type        :DbContext}}}
+            :DbContext {:description "Nested data of field 'db' on type 'Entity'"
+                        :fields      {:_fields {:description "Allows to explore which fields also hold values within the respective selection level"
+                                                :type        '(list :String)}
+                                      :id      {:datomic/ident     :db/id
+                                                :datomic/valueType :db.type/long
+                                                :description       "Attribute used to uniquely identify an entity, managed by Datomic."
+                                                :type              :ID}
+                                      :ident   {:datomic/ident     :db/ident
+                                                :datomic/valueType :db.type/keyword
+                                                :description       "Attribute used to uniquely name an entity."
+                                                :type              :String}}}})))
 
   ;; checking for backref
   (let [schema-with-refs    [#:db{:ident       :artist/name,
