@@ -60,11 +60,6 @@
                   ;; TODO
                   (println "Hello from _rest field"))})
 
-(defn base-type-config [desc filled-fields-field]
-  (cond->
-    {:description desc}
-    filled-fields-field (assoc :fields {filled-fields-field filled-fields-field-config})))
-
 (defn gen-back-ref-attribute [{:keys [db/ident]}]
   {::back-ref?     true
    :db/ident       (datomic/back-ref ident),
@@ -164,7 +159,10 @@
                             (map (fn [{:keys [db/ident] :as a}]
                                    (vector ident a)))
                             (into {}))]
-    (loop [response-objects {entity-type {:description "An entity of this application"}}
+    (loop [response-objects {entity-type {:description "An entity of this application"
+                                          :fields      (if filled-fields-field
+                                                         {filled-fields-field filled-fields-field-config}
+                                                         {})}}
            [current-path & remaining-paths] (gen-attribute-paths attributes attribute-aliases entity-type)]
       (if-let [[[object field nested-field & more-fields] real-attribute-ident] current-path]
         (if nested-field
@@ -172,9 +170,10 @@
                 field-type      (:type field-config)
                 field-type-desc (str "Nested data of field '" (str/replace (name field) "_" "") "' on type '" (name object) "'")]
             (recur
-              (-> response-objects
-                  (assoc-in [object :fields field] field-config)
-                  (assoc-in [field-type :description] field-type-desc))
+              (cond-> response-objects
+                true (assoc-in [object :fields field] field-config)
+                true (assoc-in [field-type :description] field-type-desc)
+                filled-fields-field (assoc-in [field-type :fields filled-fields-field] filled-fields-field-config))
               (conj remaining-paths
                     [(concat [field-type nested-field] more-fields) real-attribute-ident])))
           (let [attribute    (get attributes-map real-attribute-ident)
@@ -323,7 +322,7 @@
                    :or   {attributes          []
                           attribute-aliases   {}
                           entity-type         :Entity
-                          filled-fields-field :_fields}     ; TODO add option to disable
+                          filled-fields-field :_fields}     ; TODO disable when done
                    :as   params}]
   (when (nil? resolve-db)
     (throw (IllegalArgumentException. (str "missing " :datomic/resolve-db))))
