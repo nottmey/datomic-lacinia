@@ -6,6 +6,8 @@ schema {
 
 "Nested data of field 'artist' on type 'Entity'"
 type ArtistContext {
+    "Allows to explore which fields also hold values within the respective selection level"
+    _fields: [String]
     "The artist's name"
     name: String
     "Enum, one of :artist.type/person, :artist.type/other, :artist.type/group."
@@ -14,6 +16,8 @@ type ArtistContext {
 
 "Nested data of field 'db' on type 'Entity'"
 type DbContext {
+    "Allows to explore which fields also hold values within the respective selection level"
+    _fields: [String]
     "Attribute used to uniquely identify an entity, managed by Datomic."
     id: ID
     "Attribute used to uniquely name an entity."
@@ -22,6 +26,8 @@ type DbContext {
 
 "An entity of this application"
 type Entity {
+    "Allows to explore which fields also hold values within the respective selection level"
+    _fields: [String]
     "Nested artist data"
     artist_: ArtistContext
     "Nested db data"
@@ -39,18 +45,24 @@ type Query {
 
 "Nested data of field 'artist' on type 'ReferencedByContext'"
 type ReferencedByArtistContext {
+    "Allows to explore which fields also hold values within the respective selection level"
+    _fields: [String]
     "Attribute for entities which are referenced via :artist/type by another entity"
     type: [Entity]
 }
 
 "Nested data of field 'referencedBy' on type 'Entity'"
 type ReferencedByContext {
+    "Allows to explore which fields also hold values within the respective selection level"
+    _fields: [String]
     "Nested artist data"
     artist_: ReferencedByArtistContext
 }
 
 "Nested data of field 'artist' on type 'Entity'"
 input ArtistContextRequest {
+    "Allows to explore which fields also hold values within the respective selection level"
+    _fields: [String]
     "The artist's name"
     name: String
     "Enum, one of :artist.type/person, :artist.type/other, :artist.type/group."
@@ -59,6 +71,8 @@ input ArtistContextRequest {
 
 "Nested data of field 'db' on type 'Entity'"
 input DbContextRequest {
+    "Allows to explore which fields also hold values within the respective selection level"
+    _fields: [String]
     "Attribute used to uniquely identify an entity, managed by Datomic."
     id: ID
     "Attribute used to uniquely name an entity."
@@ -67,6 +81,8 @@ input DbContextRequest {
 
 "An entity of this application"
 input EntityRequest {
+    "Allows to explore which fields also hold values within the respective selection level"
+    _fields: [String]
     "Nested artist data"
     artist_: ArtistContextRequest
     "Nested db data"
@@ -77,12 +93,16 @@ input EntityRequest {
 
 "Nested data of field 'artist' on type 'ReferencedByContext'"
 input ReferencedByArtistContextRequest {
+    "Allows to explore which fields also hold values within the respective selection level"
+    _fields: [String]
     "Attribute for entities which are referenced via :artist/type by another entity"
     type: [EntityRequest]
 }
 
 "Nested data of field 'referencedBy' on type 'Entity'"
 input ReferencedByContextRequest {
+    "Allows to explore which fields also hold values within the respective selection level"
+    _fields: [String]
     "Nested artist data"
     artist_: ReferencedByArtistContextRequest
 }

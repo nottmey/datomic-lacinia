@@ -1,5 +1,6 @@
 (ns datomic-lacinia.mbrainz-example-test
   (:require [clojure.data.json :as json]
+            [clojure.java.io :as io]
             [clojure.test :refer [deftest is testing]]
             [com.walmartlabs.lacinia.schema :as ls]
             [datomic-lacinia.datomic :as datomic]
@@ -46,8 +47,9 @@
         data-tx (d/transact conn {:tx-data tx-data})
         id      (fn [temp-id] (str (get-in data-tx [:tempids temp-id])))
         as      (datomic/attributes (d/db conn) ["artist"])
-        s       (ls/compile (schema/gen-schema {:datomic/resolve-db #(d/db conn)
-                                                :datomic/attributes as}))]
+        s       (ls/compile (schema/gen-schema {:datomic/resolve-db          #(d/db conn)
+                                                :datomic/attributes          as
+                                                :lacinia/filled-fields-field :_fields}))]
 
     ; TODO test introspection
     ; TODO edge cases (expected data missing, id missing, etc.)
@@ -79,6 +81,13 @@
         (let [r (testing/execute s file {:id (id "1") :name "LedZeppelin"})]
           (is (= (get-in r [:data :match]) [])))))
 
+    (let [file "mbrainz/match-group-artists.graphql"]
+      (testing file
+        (let [r (testing/execute s file nil)]
+          (is (= (count (get-in r [:data :match])) 2))
+          (is (= (get-in r [:data :match 0 :artist_ :name]) "Led Zeppelin"))
+          (is (= (get-in r [:data :match 1 :artist_ :name]) "The Beatles")))))
+
     (let [file "mbrainz/match-john-lennon.graphql"]
       (testing file
         (let [r (testing/execute s file nil)]
@@ -89,10 +98,10 @@
           (is (= (get-in r [:data :match 0 :artist_ :name]) "John Lennon"))
           (is (= (get-in r [:data :match 0 :artist_ :type :db_ :ident]) ":artist.type/person")))))
 
-    (let [file "mbrainz/match-group-artists.graphql"]
+    (let [file "mbrainz/match-led-zeppelin-with-fields.graphql"]
       (testing file
         (let [r (testing/execute s file nil)]
-          (is (= (count (get-in r [:data :match])) 2))
-          (is (= (get-in r [:data :match 0 :artist_ :name]) "Led Zeppelin"))
-          (is (= (get-in r [:data :match 1 :artist_ :name]) "The Beatles")))))))
+          (is (= (count (get-in r [:data :match])) 1))
+          (is (= (json/read-str (json/write-str r))
+                 (json/read-str (slurp (io/resource "mbrainz/match-led-zeppelin-with-fields-result.json"))))))))))
 

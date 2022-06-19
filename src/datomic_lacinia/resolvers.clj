@@ -2,10 +2,13 @@
   (:require [clojure.test :refer [deftest- is]]
             [clojure.walk :as w]
             [com.walmartlabs.lacinia.executor :as executor]
+            [com.walmartlabs.lacinia.resolve :as resolve]
             [datomic-lacinia.datomic :as datomic]
+            [datomic-lacinia.graphql :as graphql]
             [datomic-lacinia.types :as types]
             [datomic-lacinia.utils :as utils]
-            [io.pedestal.log :as log]))
+            [io.pedestal.log :as log]
+            [medley.core :as m]))
 
 (defn value-field-resolver [field attribute-ident attribute-type]
   (fn [{:keys [com.walmartlabs.lacinia/container-type-name]} args value]
@@ -30,9 +33,25 @@
                :value value)
     value))
 
+(defn filled-fields-field-resolver [field]
+  (fn [{:keys [com.walmartlabs.lacinia/container-type-name selection-field->attr]} args value]
+    (log/trace :msg "resolve filled fields"
+               :type container-type-name
+               :field field
+               :args args
+               :value value)
+    (let [obj-field-comb (graphql/object-field-comb container-type-name field)
+          attr->field    (selection-field->attr obj-field-comb)
+          result         (->> (keys value)
+                              (map #(get attr->field %))
+                              (filter some?)
+                              (map name)
+                              distinct)]
+      result)))
+
 ; TODO generate resolvers for every other identity attribute (see https://docs.datomic.com/on-prem/schema/identity.html)
 
-(defn pull-pattern [selection-tree selection-field->attr]
+(defn pull-pattern [selections selection-field->attr]
   (w/postwalk
     (fn [v]
       (let [r (if (and (sequential? v) (not (map-entry? v)))
@@ -42,36 +61,23 @@
                      (mapcat
                        #(mapcat
                           (fn [[selection-field subselection]]
-                            (if-let [attr (selection-field->attr selection-field)]
-                              [(if (empty? subselection) attr {attr subselection})]
-                              subselection))
+                            (let [a-or-as (selection-field->attr selection-field)]
+                              (cond
+                                (nil? a-or-as) subselection
+                                (and (keyword? a-or-as) (empty? subselection)) [a-or-as]
+                                (and (keyword? a-or-as) (seq subselection)) [{a-or-as subselection}]
+                                (and (map? a-or-as) (empty? subselection)) (vec (keys a-or-as))
+                                :else (throw (AssertionError. "subselection not possible for scalar fields")))))
                           %))
-                     distinct)
+                     ; sort keywords last (maps first), so that the unspecific pull is dropped by distinct-by
+                     (sort-by keyword?)
+                     (m/distinct-by #(if (map? %) (ffirst %) %)))
                 v)]
         #_(println "val" v)
         #_(when (not (identical? v r))
             (println "res" r))
         r))
-    [{:selections selection-tree}]))
-
-(comment
-  (let [selection-tree        {:Entity/db_ [{:selections {:DbContext/_rest [nil]}}]}
-        selection-field->attr {:ReferencedByContext/artist_     nil,
-                               :ReferencedByContext/_rest       nil,
-                               :ReferencedByArtistContext/type  :artist/_type,
-                               :ReferencedByArtistContext/_rest nil
-                               :ArtistContext/name              :artist/name,
-                               :ArtistContext/type              :artist/type,
-                               :ArtistContext/_rest             nil
-                               :DbContext/id                    :db/id,
-                               :DbContext/ident                 :db/ident,
-                               :DbContext/_rest                 nil,
-                               :Entity/db_                      nil,
-                               :Entity/referencedBy_            nil,
-                               :Entity/artist_                  nil
-                               :Entity/_rest                    nil}]
-    (is (= (pull-pattern selection-tree selection-field->attr)
-           [:db/id :db/ident :artist/name {:artist/type [:db/ident]}]))))
+    [{:selections selections}]))
 
 (deftest- pull-pattern-test
   (let [selection-tree        {:Entity/db_
@@ -87,29 +93,52 @@
                                                              [{:alias :type, :selections {:DbContext/ident
                                                                                           [{:alias :name}
                                                                                            {:alias :other}]}}]}}]}}]}
-        selection-field->attr {:ReferencedByContext/artist_    nil,
-                               :ArtistContext/name             :artist/name,
-                               :DbContext/id                   :db/id,
-                               :ArtistContext/type             :artist/type,
+        selection-field->attr {:DbContext/id                   :db/id,
                                :DbContext/ident                :db/ident,
-                               :ReferencedByArtistContext/type :artist/_type,
-                               :Entity/db_                     nil,
-                               :Entity/referencedBy_           nil,
-                               :Entity/artist_                 nil}]
-    (is (= (pull-pattern selection-tree selection-field->attr)
-           [:db/id :db/ident :artist/name {:artist/type [:db/ident]}]))))
+                               :ArtistContext/name             :artist/name,
+                               :ArtistContext/type             :artist/type,
+                               :ReferencedByArtistContext/type :artist/_type}]
+    (is (= (set (pull-pattern selection-tree selection-field->attr))
+           (set [:db/id :db/ident :artist/name {:artist/type [:db/ident]}]))))
+
+  (let [selection-tree        {:Entity/db_ [{:selections {:DbContext/id      [nil]
+                                                          :DbContext/_fields [nil]}}]}
+        selection-field->attr {:DbContext/id      :db/id,
+                               :DbContext/ident   :db/ident,
+                               :DbContext/_fields {:db/id    :id
+                                                   :db/ident :ident}}]
+    (is (= (set (pull-pattern selection-tree selection-field->attr))
+           #{:db/id :db/ident})))
+
+  (let [selection-tree        {:Entity/_fields [nil]
+                               :Entity/db_     [{:selections {:DbContext/id      [nil]
+                                                              :DbContext/_fields [nil]}}]}
+        selection-field->attr {:ReferencedByArtistContext/type :artist/_type,
+                               :ArtistContext/name             :artist/name,
+                               :ArtistContext/type             :artist/type,
+                               :DbContext/id                   :db/id,
+                               :DbContext/ident                :db/ident,
+                               :DbContext/_fields              {:db/id    :id
+                                                                :db/ident :ident},
+                               :Entity/_fields                 {:db/id        :db_
+                                                                :db/ident     :db_
+                                                                :artist/name  :artist_
+                                                                :artist/type  :artist_
+                                                                :artist/_type :referencedBy_}}]
+    (is (= (set (pull-pattern selection-tree selection-field->attr))
+           #{:db/id :db/ident :artist/name :artist/type :artist/_type}))))
 
 (defn get-resolver [resolve-db selection-field->attr]
   (fn [context {:keys [id] :as args} _]
-    (log/debug :msg "get request"
-               :args args)
-    (let [eid     (Long/valueOf ^String id)
-          db      (resolve-db)
-          pattern (pull-pattern
-                    (executor/selections-tree context)
-                    selection-field->attr)
-          result  (datomic/entity db eid pattern)]
-      result)))
+    (let [selections (executor/selections-tree context)]
+      (log/debug :msg "get request"
+                 :args args
+                 :selections selections)
+      (let [eid     (Long/valueOf ^String id)
+            db      (resolve-db)
+            pattern (pull-pattern selections selection-field->attr)
+            result  (datomic/entity db eid pattern)]
+        (resolve/with-context result {:selection-field->attr selection-field->attr})))))
 
 (defn- db-paths-with-values [input-object response-objects entity-type]
   (->>
@@ -163,12 +192,12 @@
                       selection-field->attr
                       entity-type]
   (fn [context {:keys [template] :as args} _]
-    (log/debug :msg "match request"
-               :args args)
-    (let [db       (resolve-db)
-          db-paths (db-paths-with-values template response-objects entity-type)
-          pattern  (pull-pattern
-                     (executor/selections-tree context)
-                     selection-field->attr)
-          results  (datomic/matches db db-paths pattern)]
-      results)))
+    (let [selections (executor/selections-tree context)]
+      (log/debug :msg "match request"
+                 :args args
+                 :selections selections)
+      (let [db       (resolve-db)
+            db-paths (db-paths-with-values template response-objects entity-type)
+            pattern  (pull-pattern selections selection-field->attr)
+            results  (datomic/matches db db-paths pattern)]
+        (resolve/with-context results {:selection-field->attr selection-field->attr})))))

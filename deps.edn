@@ -1,6 +1,7 @@
 {:mvn/repos {"cognitect-dev-tools" {:url "https://dev-tools.cognitect.com/maven/releases/"}}
  :deps      {com.datomic/client-api   {:mvn/version "1.0.58"}
              io.pedestal/pedestal.log {:mvn/version "0.5.10"}
+             medley/medley            {:mvn/version "1.4.0"}
              ;; min. supported clojure version
              org.clojure/clojure      {:mvn/version "1.10.3"}}
  :paths     ["src"]
@@ -20,7 +21,7 @@
                                      ch.qos.logback/logback-classic   {:mvn/version "1.2.11"}
                                      ch.qos.logback/logback-core      {:mvn/version "1.2.11"}}}
              :test    {:extra-paths ["resources" "test" "examples"]
-                       :extra-deps  {lambdaisland/kaocha            {:mvn/version "1.66.1034"}
+                       :extra-deps  {lambdaisland/kaocha            {:mvn/version "1.67.1055"}
                                      com.datomic/dev-local          {:mvn/version "1.0.243"}
                                      io.aviso/pretty                {:mvn/version "1.1.1"}
                                      com.walmartlabs/lacinia        {:mvn/version "1.1"}

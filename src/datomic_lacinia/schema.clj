@@ -53,12 +53,10 @@
    :description (str "Nested " (str/replace (name field) "_" "") " data")
    :resolve     (resolvers/context-field-resolver field)})
 
-(def filled-fields-field-config
+(defn filled-fields-field-config [field]
   {:type        (list 'list :String)
    :description "Allows to explore which fields also hold values within the respective selection level"
-   :resolve     (fn [context args value]
-                  ;; TODO
-                  (println "Hello from _rest field"))})
+   :resolve     (resolvers/filled-fields-field-resolver field)})
 
 (defn gen-back-ref-attribute [{:keys [db/ident]}]
   {::back-ref?     true
@@ -159,10 +157,7 @@
                             (map (fn [{:keys [db/ident] :as a}]
                                    (vector ident a)))
                             (into {}))]
-    (loop [response-objects {entity-type {:description "An entity of this application"
-                                          :fields      (if filled-fields-field
-                                                         {filled-fields-field filled-fields-field-config}
-                                                         {})}}
+    (loop [response-objects {entity-type {:description "An entity of this application"}}
            [current-path & remaining-paths] (gen-attribute-paths attributes attribute-aliases entity-type)]
       (if-let [[[object field nested-field & more-fields] real-attribute-ident] current-path]
         (if nested-field
@@ -172,14 +167,18 @@
             (recur
               (cond-> response-objects
                 true (assoc-in [object :fields field] field-config)
-                true (assoc-in [field-type :description] field-type-desc)
-                filled-fields-field (assoc-in [field-type :fields filled-fields-field] filled-fields-field-config))
+                filled-fields-field (update-in [object :fields filled-fields-field] #(or % (filled-fields-field-config filled-fields-field)))
+                filled-fields-field (assoc-in [object :fields filled-fields-field :datomic/attributes real-attribute-ident] field)
+                true (assoc-in [field-type :description] field-type-desc))
               (conj remaining-paths
                     [(concat [field-type nested-field] more-fields) real-attribute-ident])))
           (let [attribute    (get attributes-map real-attribute-ident)
                 field-config (gen-value-field-config field attribute entity-type)]
             (recur
-              (assoc-in response-objects [object :fields field] field-config)
+              (cond-> response-objects
+                true (assoc-in [object :fields field] field-config)
+                filled-fields-field (update-in [object :fields filled-fields-field] #(or % (filled-fields-field-config filled-fields-field)))
+                filled-fields-field (assoc-in [object :fields filled-fields-field :datomic/attributes real-attribute-ident] field))
               remaining-paths)))
         response-objects))))
 
@@ -188,14 +187,11 @@
         extended-attributes (gen-extended-attributes [] extended-aliases)
         objects             (gen-response-objects extended-attributes extended-aliases :Entity :_fields)]
     (is (= (testing/clean objects [:resolve])
-           {:Entity    {:description "An entity of this application"
-                        :fields      {:_fields {:description "Allows to explore which fields also hold values within the respective selection level"
-                                                :type        '(list :String)}
-                                      :db_     {:description "Nested db data"
-                                                :type        :DbContext}}}
-            :DbContext {:description "Nested data of field 'db' on type 'Entity'"
-                        :fields      {:_fields {:description "Allows to explore which fields also hold values within the respective selection level"
-                                                :type        '(list :String)}
+           {:DbContext {:description "Nested data of field 'db' on type 'Entity'"
+                        :fields      {:_fields {:datomic/attributes {:db/id    :id
+                                                                     :db/ident :ident}
+                                                :description        "Allows to explore which fields also hold values within the respective selection level"
+                                                :type               '(list :String)}
                                       :id      {:datomic/ident     :db/id
                                                 :datomic/valueType :db.type/long
                                                 :description       "Attribute used to uniquely identify an entity, managed by Datomic."
@@ -203,7 +199,14 @@
                                       :ident   {:datomic/ident     :db/ident
                                                 :datomic/valueType :db.type/keyword
                                                 :description       "Attribute used to uniquely name an entity."
-                                                :type              :String}}}})))
+                                                :type              :String}}}
+            :Entity    {:description "An entity of this application"
+                        :fields      {:_fields {:datomic/attributes {:db/id    :db_
+                                                                     :db/ident :db_}
+                                                :description        "Allows to explore which fields also hold values within the respective selection level"
+                                                :type               '(list :String)}
+                                      :db_     {:description "Nested db data"
+                                                :type        :DbContext}}}})))
 
   ;; checking for backref
   (let [schema-with-refs    [#:db{:ident       :artist/name,
@@ -222,7 +225,8 @@
                                   :doc         "Artists who had influences on the style of this track"}]
         extended-aliases    (gen-extended-aliases {})
         extended-attributes (gen-extended-attributes schema-with-refs extended-aliases)
-        objects             (gen-response-objects extended-attributes extended-aliases :Entity nil)]
+        objects             (gen-response-objects extended-attributes extended-aliases :Entity nil)
+        objects-with-fields (gen-response-objects extended-attributes extended-aliases :Entity :_fields)]
     (is (= (testing/clean objects [:resolve])
            {:ArtistContext            {:description "Nested data of field 'artist' on type 'Entity'"
                                        :fields      {:name {:datomic/ident     :artist/name
@@ -269,15 +273,41 @@
                                                                    :type              '(list :Entity)}
                                                      :name        {:datomic/ident     :track/name
                                                                    :datomic/valueType :db.type/string
-                                                                   :type              :String}}}}))))
+                                                                   :type              :String}}}}))
+
+    (is (= (get-in objects-with-fields [:Entity :fields :_fields :datomic/attributes])
+           {:db/id              :db_
+            :db/ident           :db_
+            :artist/name        :artist_
+            :track/name         :track_
+            :track/artists      :track_
+            :track/_artists     :referencedBy_
+            :track/influencers  :track_
+            :track/_influencers :referencedBy_}))
+    (is (= (get-in objects-with-fields [:DbContext :fields :_fields :datomic/attributes])
+           {:db/id    :id
+            :db/ident :ident}))
+    (is (= (get-in objects-with-fields [:ArtistContext :fields :_fields :datomic/attributes])
+           {:artist/name :name}))
+    (is (= (get-in objects-with-fields [:TrackContext :fields :_fields :datomic/attributes])
+           {:track/name        :name
+            :track/artists     :artists
+            :track/influencers :influencers}))
+    (is (= (get-in objects-with-fields [:ReferencedByContext :fields :_fields :datomic/attributes])
+           {:track/_artists     :track_
+            :track/_influencers :track_}))
+    (is (= (get-in objects-with-fields [:ReferencedByTrackContext :fields :_fields :datomic/attributes])
+           {:track/_artists     :artists
+            :track/_influencers :influencers}))))
 
 (defn gen-selection-fields [response-objects]
   (->> response-objects
        (mapcat (fn [[type {:keys [fields]}]]
                  (let [type-name (name type)]
                    (->> fields
-                        (map (fn [[field {:keys [datomic/ident]}]]
-                               (vector (keyword type-name (name field)) ident)))))))
+                        (map (fn [[field {:keys [datomic/ident datomic/attributes]}]]
+                               (vector (keyword type-name (name field))
+                                       (or attributes ident))))))))
        (into {})))
 
 (deftest- gen-selection-fields-test
@@ -299,7 +329,23 @@
             :ReferencedByArtistContext/type :artist/_type,
             :Entity/db_                     nil,
             :Entity/referencedBy_           nil,
-            :Entity/artist_                 nil}))))
+            :Entity/artist_                 nil})))
+
+  (let [partial-response-objects {:Entity    {:fields {:_fields {:datomic/attributes {:db/id    :db_
+                                                                                      :db/ident :db_}}
+                                                       :db_     {},}},
+                                  :DbContext {:fields {:_fields {:datomic/attributes {:db/id    :id
+                                                                                      :db/ident :ident}}
+                                                       :id      {:datomic/ident :db/id},
+                                                       :ident   {:datomic/ident :db/ident}}}}]
+    (is (= (gen-selection-fields partial-response-objects)
+           {:Entity/_fields    {:db/id    :db_
+                                :db/ident :db_},
+            :Entity/db_        nil
+            :DbContext/_fields {:db/id    :id
+                                :db/ident :ident},
+            :DbContext/id      :db/id,
+            :DbContext/ident   :db/ident}))))
 
 (defn gen-input-objects [response-objects]
   (let [ref->input-ref           (fn [k] (if (get response-objects k) (graphql/input-type k) k))
@@ -312,7 +358,6 @@
 
 ; TODO add time basis to requests
 ; TODO add database query to tracing (or own tracing mode for it)
-; TODO add 'what else is available field to entity, etc?'
 ; TODO try out https://github.com/Datomic/ion-starter
 ; TODO keep field intact when attribute renaming happens (old request don't break)
 ; TODO add security (query limiting, authorization, etc.)
@@ -326,7 +371,7 @@
                    :or   {attributes          []
                           attribute-aliases   {}
                           entity-type         :Entity
-                          filled-fields-field :_fields}     ; TODO disable when done
+                          filled-fields-field nil}
                    :as   params}]
   (when (nil? resolve-db)
     (throw (IllegalArgumentException. (str "missing " :datomic/resolve-db))))

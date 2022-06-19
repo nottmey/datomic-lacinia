@@ -1,0 +1,37 @@
+{
+  "data": {
+    "match": [
+      {
+        "_fields": [
+          "db_",
+          "artist_"
+        ],
+        "db_": {
+          "_fields": [
+            "id"
+          ]
+        },
+        "artist_": {
+          "_fields": [
+            "type",
+            "name"
+          ],
+          "name": "Led Zeppelin",
+          "type": {
+            "_fields": [
+              "db_",
+              "referencedBy_"
+            ],
+            "db_": {
+              "_fields": [
+                "id",
+                "ident"
+              ],
+              "ident": ":artist.type/group"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,19 @@
+query {
+    match(template: {artist_: {name: "Led Zeppelin"}}) {
+        _fields
+        db_ {
+            _fields
+        }
+        artist_ {
+            _fields
+            name
+            type {
+                _fields
+                db_ {
+                    _fields
+                    ident
+                }
+            }
+        }
+    }
+}

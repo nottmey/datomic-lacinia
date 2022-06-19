@@ -46,3 +46,11 @@
 (deftest- context-field-test
   (is (= (context-field :artist) :artist_))
   (is (= (context-field :long-example) :longExample_)))
+
+(defn object-field-comb [object field]
+  {:pre [(nil? (namespace object))
+         (nil? (namespace field))]}
+  (keyword (name object) (name field)))
+
+(deftest- object-field-comb-test
+  (is (= (object-field-comb :Entity :db_) :Entity/db_)))
