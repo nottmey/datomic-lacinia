@@ -69,7 +69,7 @@
                                 (and (map? a-or-as) (empty? subselection)) (vec (keys a-or-as))
                                 :else (throw (AssertionError. "subselection not possible for scalar fields")))))
                           %))
-                     ; sort keywords last (maps first), so that the unspecific pull is dropped by distinct-by
+                     ; sort keywords last (maps first), so that the more specific pull is kept by distinct-by
                      (sort-by keyword?)
                      (m/distinct-by #(if (map? %) (ffirst %) %)))
                 v)]
